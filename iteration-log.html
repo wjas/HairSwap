@@ -200,6 +200,34 @@
     <main>
       <article>
         <div class="bar">
+          <span>2026-03-08 云部署准备</span>
+          <span>v1.3.0</span>
+        </div>
+        <div class="content">
+          <h2>新增</h2>
+          <ul>
+            <li>✨ 创建火山引擎函数服务部署代码包（vein-function.zip）</li>
+            <li>✨ 创建火山引擎部署文档：VEIN_DEPLOYMENT.md、VEIN_DEPLOY_STEPS.md</li>
+            <li>✨ 创建 Vercel 部署配置：vercel.json</li>
+            <li>✨ 创建部署方案对比文档：DEPLOYMENT_OPTIONS.md</li>
+            <li>✨ 创建快速部署指南：QUICK_DEPLOY.md</li>
+            <li>✨ 部署历史记录：包含所有历史生成记录（original.png + result.png + metadata.json）</li>
+          </ul>
+          <h2>改善</h2>
+          <ul>
+            <li>🎨 优化函数服务代码：支持 HTTP 服务器模式（http.createServer + server.listen）</li>
+            <li>🎨 配置 Serverless 网关实例：免除 API 网关托管费用</li>
+            <li>🎨 配置环境变量：VOLCANO_API_KEY、VOLCANO_MODEL、VOLCANO_ENDPOINT</li>
+            <li>🎨 云函数已部署并运行成功（状态：Ready）</li>
+          </ul>
+          <div class="note">
+            <strong>技术亮点：</strong>火山引擎 Web 应用函数使用 HTTP 服务器持续监听端口模式。Serverless 网关实例免除托管费用，仅收取 CLB 和流量费用。部署历史记录同步到云端，用户可查看所有历史生成记录。
+          </div>
+        </div>
+      </article>
+
+      <article>
+        <div class="bar">
           <span>2026-03-08 移动端体验优化</span>
           <span>v1.2.0</span>
         </div>

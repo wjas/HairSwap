@@ -442,39 +442,77 @@ class HairSwapApp {
   // 配置后端服务器地址
   getBackendUrl() {
     // 使用固定的后端服务器地址
-    const hostname = window.location.hostname === 'localhost' ? '192.168.2.60' : window.location.hostname;
+    const hostname = window.location.hostname;
+    // 如果是 file:// 协议或者 hostname 为空，使用固定的 192.168.2.60
+    if (!hostname || hostname === '' || window.location.protocol === 'file:') {
+      return 'http://192.168.2.60:3001';
+    }
+    // 如果是 localhost，使用 192.168.2.60
+    if (hostname === 'localhost' || hostname === '127.0.0.1') {
+      return 'http://192.168.2.60:3001';
+    }
+    // 其他情况使用当前 hostname
     return 'http://' + hostname + ':3001';
   }
 
   // 加载历史记录
   async loadHistory() {
-    // 从服务器加载历史记录列表
+    // 优先尝试从服务器加载
     try {
       const serverUrl = this.getBackendUrl() + '/history-list';
+      console.log('🔍 尝试从服务器加载历史记录:', serverUrl);
       const response = await fetch(serverUrl);
       if (response.ok) {
         const data = await response.json();
-        // 图片已经是 Base64 格式，直接使用
         this.state.history = (data.records || []).map(record => {
-          console.log('🖼️  历史记录:', record.id, record.hairstyleName, record.imageUrl ? '有图片' : '无图片');
+          console.log('🖼️  历史记录（服务器）:', record.id, record.hairstyleName, record.imageUrl ? '有图片' : '无图片');
           return {
             ...record,
-            imageUrl: record.imageUrl // 直接使用 Base64 图片
+            imageUrl: record.imageUrl
           };
         });
-        console.log('📋 加载历史记录:', this.state.history.length, '条');
+        console.log('✅ 从服务器加载历史记录:', this.state.history.length, '条');
+        
+        // 同时保存到 localStorage 作为备份
+        this.saveHistoryToLocalStorage();
+        return;
       }
     } catch (error) {
-      console.error('加载历史记录失败:', error);
+      console.log('⚠️ 服务器加载失败，尝试从 localStorage 加载:', error.message);
+    }
+    
+    // 服务器加载失败，从 localStorage 加载
+    try {
+      const saved = localStorage.getItem('hairSwapHistory');
+      if (saved) {
+        this.state.history = JSON.parse(saved);
+        console.log('✅ 从 localStorage 加载历史记录:', this.state.history.length, '条');
+      } else {
+        console.log('ℹ️ localStorage 中没有历史记录');
+        this.state.history = [];
+      }
+    } catch (error) {
+      console.error('❌ 从 localStorage 加载失败:', error);
       this.state.history = [];
+    }
+  }
+
+  // 保存历史记录到 localStorage
+  saveHistoryToLocalStorage() {
+    try {
+      localStorage.setItem('hairSwapHistory', JSON.stringify(this.state.history));
+      console.log('💾 历史记录已保存到 localStorage');
+    } catch (error) {
+      console.error('❌ 保存到 localStorage 失败:', error);
     }
   }
 
   // 保存历史记录到文件系统
   saveHistory() {
     // 历史记录由服务器自动保存到文件系统
-    // 不再使用 localStorage
-    console.log('💾 历史记录已保存到服务器');
+    // 同时也保存到 localStorage
+    this.saveHistoryToLocalStorage();
+    console.log('💾 历史记录已保存');
   }
 
   // 添加到历史记录

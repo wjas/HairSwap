@@ -10,9 +10,12 @@ const http = require('http');
 const fs = require('fs');
 const path = require('path');
 const axios = require('axios');
+const sharp = require('sharp');
 
 const PORT = 3001;
 const HOST = '0.0.0.0'; // 允许局域网访问
+const THUMBNAIL_WIDTH = 400;
+const THUMBNAIL_QUALITY = 80;
 
 // 从 .env 文件读取配置
 function loadEnv() {
@@ -236,6 +239,17 @@ const server = http.createServer(async (req, res) => {
           if (resultBuffer) {
             fs.writeFileSync(path.join(recordDir, 'result.png'), resultBuffer);
             console.log('   ✅ result.png 已保存');
+
+            // 自动生成缩略图
+            try {
+              await sharp(path.join(recordDir, 'result.png'))
+                .resize(THUMBNAIL_WIDTH, null, { withoutEnlargement: true })
+                .jpeg({ quality: THUMBNAIL_QUALITY })
+                .toFile(path.join(recordDir, 'result_thumb.jpg'));
+              console.log('   ✅ result_thumb.jpg 已生成');
+            } catch (thumbError) {
+              console.error('   ❌ 生成缩略图失败:', thumbError.message);
+            }
           }
         }
 
@@ -268,10 +282,14 @@ const server = http.createServer(async (req, res) => {
         if (fs.existsSync(metadataPath)) {
           const metadata = JSON.parse(fs.readFileSync(metadataPath, 'utf-8'));
 
-          // 检查是否有生成图 - 直接返回 Base64 避免跨域问题
+          // 检查是否有缩略图 - 优先使用缩略图
+          const resultThumbPath = path.join(historyDir, dir, 'result_thumb.jpg');
           const resultPath = path.join(historyDir, dir, 'result.png');
           let imageData = null;
-          if (fs.existsSync(resultPath)) {
+          if (fs.existsSync(resultThumbPath)) {
+            const imageBuffer = fs.readFileSync(resultThumbPath);
+            imageData = 'data:image/jpeg;base64,' + imageBuffer.toString('base64');
+          } else if (fs.existsSync(resultPath)) {
             const imageBuffer = fs.readFileSync(resultPath);
             imageData = 'data:image/png;base64,' + imageBuffer.toString('base64');
           }
