@@ -5,6 +5,4 @@ node_modules
 *.zip
 h5/history/*/result_thumb.jpg
 h5/history/*/result_thumb.png
-h5/images/*_thumb.jpg
-h5/images/*_thumb.png
 vein-function/
