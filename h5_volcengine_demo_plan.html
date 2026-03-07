@@ -1,0 +1,247 @@
+<!doctype html>
+<html lang="zh-CN">
+
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>火山引擎发型生成 H5 Demo 工程方案（最小可行）</title>
+  <style>
+    body {
+      font-family: Arial, "PingFang SC", "Microsoft YaHei", sans-serif;
+      line-height: 1.6;
+      margin: 24px;
+      color: #1f2328;
+    }
+
+    h1,
+    h2,
+    h3 {
+      margin: 20px 0 8px;
+    }
+
+    code,
+    pre {
+      background: #f6f8fa;
+      padding: 2px 4px;
+      border-radius: 4px;
+    }
+
+    pre {
+      padding: 12px;
+      overflow: auto;
+    }
+
+    .muted {
+      color: #6e7781;
+    }
+
+    table {
+      border-collapse: collapse;
+      width: 100%;
+      margin: 8px 0 16px;
+    }
+
+    th,
+    td {
+      border: 1px solid #d0d7de;
+      padding: 8px;
+      text-align: left;
+    }
+  </style>
+</head>
+
+<body>
+  <h1>火山引擎发型生成 H5 Demo 工程方案（最小可行）</h1>
+  <p class="muted">目标：让用户只需上传/拍照 → 点击生成 → 得到换发型后的照片。无需登录豆包网页。</p>
+
+  <h2>一、关键结论（先看）</h2>
+  <ul>
+    <li>可行：用火山引擎 doubao-seedream 5.0 lite 多图融合模型实现“参考图发型替换”，H5 只负责上传和展示。</li>
+    <li>最简单做法：前端 H5 + 云函数（后端代理 API Key）+ 云存储。</li>
+    <li>模型能力：doubao-seedream 5.0 lite 支持多图输入（2-14张）+文本提示词生成图片，可实现客户图 + 发型模板图的融合。</li>
+  </ul>
+
+  <h2>二、产品边界与 MVP 范围</h2>
+  <h3>用户侧体验</h3>
+  <ol>
+    <li>选择/拍摄客户照片（正面）。</li>
+    <li>选择一个发型模板（可选；也可先固定一个模板）。</li>
+    <li>点击“生成”，等待 10–30 秒。</li>
+    <li>看到结果图，可保存到相册。</li>
+  </ol>
+
+  <h3>MVP 只做这些</h3>
+  <ul>
+    <li>仅支持正面角度。</li>
+    <li>模板发型数量 1–3 个。</li>
+    <li>无需登录、无需填写信息。</li>
+  </ul>
+
+  <h2>三、整体架构（最简单）</h2>
+  <ul>
+    <li>H5 前端：上传图片、选择模板、展示结果。</li>
+    <li>云函数：保存 API Key，调用火山引擎图像编辑 API。</li>
+    <li>云存储：存放用户上传图和结果图（若 API 直接返回 URL，也可不存）。</li>
+  </ul>
+
+  <h2>四、关键功能拆解</h2>
+  <table>
+    <tr>
+      <th>功能</th>
+      <th>最简实现</th>
+      <th>备注</th>
+    </tr>
+    <tr>
+      <td>上传客户图</td>
+      <td>H5 直接上传到云存储</td>
+      <td>可限制大小，减少等待</td>
+    </tr>
+    <tr>
+      <td>选择模板</td>
+      <td>前端固定模板列表</td>
+      <td>后期可扩展</td>
+    </tr>
+    <tr>
+      <td>生成发型</td>
+      <td>云函数调用火山 API</td>
+      <td>只改头发，保留脸部/背景</td>
+    </tr>
+    <tr>
+      <td>展示结果</td>
+      <td>前端展示返回图 URL</td>
+      <td>提供“保存”按钮</td>
+    </tr>
+  </table>
+
+  <h2>五、火山引擎 API 使用策略</h2>
+  <p><b>模型选择：</b>doubao-seedream 5.0 lite，支持多图融合，可实现客户图 + 发型模板图的发型替换。</p>
+
+  <h3>已确认能力</h3>
+  <ol>
+    <li>API：POST https://ark.cn-beijing.volces.com/api/v3/images/generations</li>
+    <li>支持多图输入（2-14张）+ 文本提示词生成单张图片</li>
+    <li>图片支持：客户图 + 发型模板图 + 提示词 = 换发型后图片</li>
+    <li>返回结果形式：base64 / URL（待实际调用确认</li>
+  </ol>
+
+  <h3>API 使用方式</h3>
+  <ul>
+    <li>输入：客户图（URL或Base64） + 发型模板图（URL或Base64） + 提示词。</li>
+    <li>提示词示例：
+      <pre>请保持脸部、五官、背景不变，仅将发型替换为参考图中的发型，发际线自然，发色一致。</pre>
+    </li>
+    <li>推荐尺寸：2048x2048（默认），总像素范围 3,686,400 - 16,777,216</li>
+  </ul>
+
+  <h3>模型参数</h3>
+  <ul>
+    <li>model: doubao-seedream-5.0-lite</li>
+    <li>sequential_image_generation: disabled（生成单图模式）</li>
+    <li>image: [客户图URL, 发型模板图URL]</li>
+    <li>size: 2048x2048（或2K/4K）</li>
+  </ul>
+
+  <h2>六、工程落地方案（最简单路线）</h2>
+  <h3>1) 选择托管（推荐）</h3>
+  <ul>
+    <li>前端：免费静态托管（如腾讯云 CloudBase、阿里云 OSS 静态网站）。</li>
+    <li>后端：云函数（与托管同平台，省配置）。</li>
+  </ul>
+
+  <h3>2) 目录结构（示例）</h3>
+  <pre>
+/project
+  /web           # H5 前端
+    index.html
+    app.js
+    style.css
+  /server        # 云函数
+    index.js
+  /assets        # 模板发型图（小量）
+  config.example.json
+  </pre>
+
+  <h3>3) 前端交互（最小）</h3>
+  <ul>
+    <li>上传控件（拍照/相册）。</li>
+    <li>模板选择（1–3 张缩略图）。</li>
+    <li>按钮：生成。</li>
+    <li>结果图：生成后显示，提供“长按保存”提示。</li>
+  </ul>
+
+  <h3>4) 后端云函数职责</h3>
+  <ul>
+    <li>接收前端请求（客户图 URL + 模板图 URL）。</li>
+    <li>拼接提示词，调用火山引擎 API。</li>
+    <li>返回结果图 URL 或 base64。</li>
+  </ul>
+
+  <h2>七、数据与安全</h2>
+  <ul>
+    <li>API Key 只放云函数，前端不暴露。</li>
+    <li>图片仅用于生成，定期清理（如 7 天）。</li>
+    <li>提示用户“照片将用于 AI 处理”。</li>
+  </ul>
+
+  <h2>八、测试标准（是否可行）</h2>
+  <ul>
+    <li>头发替换成功，脸部、五官、背景基本不变。</li>
+    <li>发际线自然，没有明显糊边/拉伸。</li>
+    <li>生成时间可接受（10–30 秒）。</li>
+  </ul>
+
+  <h2>九、成本预估（粗略）</h2>
+  <ul>
+    <li>云函数与静态托管：免费额度足够 demo。</li>
+    <li>火山引擎 API：按调用计费，小量测试成本低。</li>
+  </ul>
+
+  <h2>十、实施步骤清单（按顺序）</h2>
+  <ol>
+    <li>注册火山引擎账号，开通 doubao-seedream-5.0-lite 模型，获取 API Key。</li>
+    <li>准备 1–3 张模板发型图（正面，清晰）。</li>
+    <li>开通云函数与静态托管。</li>
+    <li>写一个最简单的 H5 页面（上传 + 生成 + 展示）。</li>
+    <li>云函数调用火山 API，返回结果。</li>
+    <li>手机访问 H5 测试效果。</li>
+  </ol>
+
+  <h2>十一、后续迭代方向</h2>
+  <ul>
+    <li>多角度模板（正/侧/背）按角度分别生成。</li>
+    <li>接入微信小程序，复用后端。</li>
+  </ul>
+
+  <h2>十二、实际配置信息（已获取）</h2>
+  <h3>API 配置</h3>
+  <ul>
+    <li><b>Model ID：</b>doubao-seedream-5-0-260128</li>
+    <li><b>API Base URL：</b>https://ark.cn-beijing.volces.com/api/v3</li>
+    <li><b>价格：</b>0.22 元/张</li>
+  </ul>
+
+  <h3>测试状态</h3>
+  <ul>
+    <li>✅ API 调用测试成功（文生图）</li>
+    <li>✅ 已创建测试脚本：test-api.js</li>
+    <li>✅ 已准备测试图片：照片 01.png、发型 01.png、发型 02.png</li>
+  </ul>
+
+  <h2>十三、对话中断后继续（给下一位 AI 的说明）</h2>
+  <p><b>项目状态：</b>已完成 API 配置和测试，准备开始换发型功能测试。</p>
+  <p><b>目标：</b>用火山引擎 doubao-seedream 5-0-260128 模型做 H5 Demo，用户只上传照片→一键生成→出结果。</p>
+  <p><b>已确认：</b>平台优先选择火山；H5 作为 Demo；不要用户登录豆包网页；doubao-seedream 5-0-260128 支持多图融合实现换发型；API 返回 URL 格式。</p>
+  <p><b>已完成：</b>
+    1) ✅ 注册火山引擎账号，获取 API Key
+    2) ✅ 创建推理接入点，开通模型服务
+    3) ✅ API 调用测试成功
+    4) ✅ 准备测试图片</p>
+  <p><b>下一步行动：</b>
+    1) 测试换发型功能（客户图 + 发型模板图）
+    2) 选定托管平台（推荐 CloudBase 或同平台云函数）
+    3) 写最简 H5 + 云函数示例</p>
+
+  <p class="muted">使用方式：把这份 HTML 方案发给下一位 AI，即可直接继续推进。</p>
+</body>
+
+</html>

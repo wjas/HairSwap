@@ -1,0 +1,559 @@
+<!doctype html>
+<html lang="zh-CN">
+
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>项目文档 - HairSwap</title>
+  <style>
+    :root {
+      color-scheme: light;
+      --bg: #f6f6f8;
+      --card: #ffffff;
+      --text: #1f1f2a;
+      --muted: #7a7a8c;
+      --line: #e5e6ec;
+      --bar: #f0f1f6;
+      --primary: #3b82f6;
+      --primary-hover: #2563eb;
+    }
+
+    body {
+      margin: 0;
+      font-family: "Noto Sans SC", "PingFang SC", "Helvetica Neue", Arial, sans-serif;
+      background: var(--bg);
+      color: var(--text);
+      line-height: 1.6;
+    }
+
+    header {
+      padding: 24px 28px 8px;
+    }
+
+    h1 {
+      font-size: 20px;
+      margin: 0 0 6px;
+    }
+
+    p {
+      margin: 6px 0;
+      color: var(--muted);
+    }
+
+    /* 标签页样式 */
+    .tabs {
+      display: flex;
+      gap: 8px;
+      padding: 0 28px;
+      margin-top: 16px;
+    }
+
+    .tab-btn {
+      padding: 10px 20px;
+      background: var(--card);
+      border: 1px solid var(--line);
+      border-radius: 8px 8px 0 0;
+      cursor: pointer;
+      font-size: 14px;
+      color: var(--muted);
+      transition: all 0.2s;
+    }
+
+    .tab-btn:hover {
+      background: var(--bar);
+      color: var(--text);
+    }
+
+    .tab-btn.active {
+      background: var(--card);
+      border-bottom-color: transparent;
+      color: var(--primary);
+      font-weight: 500;
+    }
+
+    /* 内容区域 */
+    .tab-content {
+      display: none;
+      padding: 0 28px 28px;
+    }
+
+    .tab-content.active {
+      display: block;
+    }
+
+    main {
+      gap: 16px;
+    }
+
+    article {
+      background: var(--card);
+      border: 1px solid var(--line);
+      border-radius: 12px;
+      overflow: hidden;
+    }
+
+    .bar {
+      background: var(--bar);
+      padding: 10px 14px;
+      display: flex;
+      align-items: center;
+      justify-content: flex-start;
+      gap: 12px;
+      font-size: 13px;
+      color: var(--muted);
+    }
+
+    .content {
+      padding: 14px;
+    }
+
+    h2 {
+      font-size: 14px;
+      margin: 10px 0 6px;
+    }
+
+    ul {
+      margin: 6px 0 0;
+      padding-left: 18px;
+    }
+
+    code {
+      background: #f1f2f7;
+      padding: 1px 4px;
+      border-radius: 4px;
+      font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, "Liberation Mono", "Courier New", monospace;
+      font-size: 12px;
+    }
+
+    .note {
+      margin-top: 8px;
+      padding: 8px 10px;
+      background: #fff7e6;
+      border: 1px solid #ffe0a3;
+      border-radius: 8px;
+      color: #8a5a00;
+      font-size: 12px;
+    }
+
+    /* 项目进展样式 */
+    .progress-section {
+      background: var(--card);
+      border: 1px solid var(--line);
+      border-radius: 12px;
+      padding: 16px;
+      margin-bottom: 16px;
+    }
+
+    .progress-section h3 {
+      font-size: 16px;
+      margin: 0 0 12px;
+      color: var(--text);
+    }
+
+    .progress-item {
+      display: flex;
+      align-items: flex-start;
+      gap: 8px;
+      margin-bottom: 8px;
+      font-size: 14px;
+    }
+
+    .progress-item .time {
+      color: var(--muted);
+      font-size: 12px;
+      min-width: 100px;
+    }
+
+    .badge {
+      display: inline-block;
+      padding: 2px 8px;
+      border-radius: 4px;
+      font-size: 12px;
+      font-weight: 500;
+    }
+
+    .badge-done {
+      background: #dcfce7;
+      color: #166534;
+    }
+
+    .badge-todo {
+      background: #fef3c7;
+      color: #92400e;
+    }
+  </style>
+</head>
+
+<body>
+  <header>
+    <h1>HairSwap AI 换发型 Demo</h1>
+    <p>项目文档与迭代日志</p>
+
+    <div class="tabs">
+      <button class="tab-btn active" onclick="switchTab('log')">迭代日志</button>
+      <button class="tab-btn" onclick="switchTab('progress')">项目进展</button>
+    </div>
+  </header>
+
+  <!-- 迭代日志标签页 -->
+  <div id="tab-log" class="tab-content active">
+    <main>
+      <article>
+        <div class="bar">
+          <span>2026-03-08 移动端体验优化</span>
+          <span>v1.2.0</span>
+        </div>
+        <div class="content">
+          <h2>新增</h2>
+          <ul>
+            <li>✨ 手机端新增"拍照"和"选择图片"按钮（蓝底白字）</li>
+            <li>✨ 响应式提示文字：手机端显示"拍摄/上传正面照片"，桌面端显示"点击上传正面照片"</li>
+            <li>✨ 照片区域最小高度 300px，防止未上传时高度缩小</li>
+          </ul>
+          <h2>修复</h2>
+          <ul>
+            <li>🐛 修复历史记录返回按钮逻辑：详情页→列表页→主页，不再闪烁</li>
+            <li>🐛 修复详情页 header 点击事件：点击标题文字也能返回列表页</li>
+            <li>🐛 修复列表页返回按钮：点击箭头或文字都能返回主页</li>
+          </ul>
+          <h2>改善</h2>
+          <ul>
+            <li>🎨 隐藏"上传照片"步骤标题，保留"选择发型"标题</li>
+            <li>🎨 删除步骤数字图标（"2"）</li>
+            <li>🎨 优化返回按钮热区：包括右侧文字区域</li>
+            <li>🎨 历史记录页面无背景、无阴影、左对齐</li>
+            <li>🎨 按钮样式统一为蓝底白字</li>
+          </ul>
+          <div class="note">
+            <strong>技术亮点：</strong>使用事件冒泡控制（stopPropagation）解决详情页返回闪烁问题。通过状态标记位（isInDetailPage）管理页面返回逻辑。CSS 媒体查询实现响应式布局。
+          </div>
+        </div>
+      </article>
+
+      <article>
+        <div class="bar">
+          <span>2026-03-07 历史记录存储优化与图标更新</span>
+          <span>v1.1.0</span>
+        </div>
+        <div class="content">
+          <h2>新增</h2>
+          <ul>
+            <li>实现文件系统存储：历史记录保存到 h5/history/ 目录，不再依赖 localStorage。</li>
+            <li>每条记录包含：metadata.json（元数据）、original.png（原图）、result.png（生成图）。</li>
+            <li>更新对比按钮图标：采用虚线半圆设计，左虚右实，直观表达对比功能。</li>
+            <li>创建技术文档 TECHNICAL_DOCS.md，包含完整架构、API 接口、部署说明。</li>
+          </ul>
+          <h2>修复</h2>
+          <ul>
+            <li>修复服务器路由顺序：先匹配图片请求 /history/:id/result.png，再匹配详情请求 /history/:id。</li>
+            <li>修复历史记录详情页：恢复对比按钮显示，支持长按查看原图。</li>
+            <li>添加图片加载调试日志：方便排查缩略图显示问题。</li>
+          </ul>
+          <h2>改善</h2>
+          <ul>
+            <li>优化图片 URL 构建：添加详细日志输出，记录每条记录的完整 URL。</li>
+            <li>添加图片加载错误处理：onerror 时显示错误信息，帮助诊断问题。</li>
+            <li>创建测试页面 test-image.html：专门用于测试图片访问功能。</li>
+          </ul>
+          <div class="note">
+            <strong>技术亮点：</strong>文件系统存储解决 localStorage 容量限制（5-10MB），支持无限历史记录。对比按钮新图标（虚线半圆）更直观表达"前后对比"概念。
+          </div>
+        </div>
+      </article>
+
+      <article>
+        <div class="bar">
+          <span>2026-03-07 生成记录功能与保存优化</span>
+          <span>v1.0.0</span>
+        </div>
+        <div class="content">
+          <h2>新增</h2>
+          <ul>
+            <li>添加生成记录功能：自动保存每次生成的历史记录。</li>
+            <li>使用 localStorage 持久化存储，最多保留 20 条记录。</li>
+            <li>开发历史记录页面：网格展示、时间戳、一键查看。</li>
+            <li>添加历史记录按钮，方便用户快速访问。</li>
+          </ul>
+          <h2>修复</h2>
+          <ul>
+            <li>修复保存图片 CORS 问题：改用新窗口打开，长按保存。</li>
+            <li>修复历史记录页面返回按钮无法点击的问题。</li>
+            <li>优化交互体验：点击历史记录方块直接查看，移除"查看"按钮。</li>
+          </ul>
+          <h2>改善</h2>
+          <ul>
+            <li>添加全局 app 对象暴露，解决 onclick 事件绑定问题。</li>
+            <li>优化历史记录存储结构：包含图片 URL、发型名称、生成时间。</li>
+            <li>完善样式：历史记录卡片美观、响应式布局。</li>
+          </ul>
+          <div class="note">
+            <strong>功能亮点：</strong>生成记录永久保存（除非清除浏览器数据），刷新页面不丢失。点击图片即可查看大图，支持多次保存。解决 CORS 限制，用户可长按保存图片到本地。
+          </div>
+        </div>
+      </article>
+
+      <article>
+        <div class="bar">
+          <span>2026-03-07 17:00:00</span>
+          <span>H5 Demo 前端开发完成</span>
+        </div>
+        <div class="content">
+          <h2>新增</h2>
+          <ul>
+            <li>创建 H5 前端项目结构：index.html、styles/main.css、js/app.js。</li>
+            <li>开发首页：支持拍照/相册选择、发型模板网格展示、生成按钮状态管理。</li>
+            <li>开发加载页面：旋转动画、预计时间提示。</li>
+            <li>开发结果页面：高清展示、保存图片、重新生成。</li>
+            <li>创建云函数部署文档 DEPLOYMENT.md，包含完整代码示例和配置步骤。</li>
+            <li>创建 H5 README.md，包含快速开始、配置说明、常见问题。</li>
+          </ul>
+          <h2>改善</h2>
+          <ul>
+            <li>采用纯 HTML/CSS/JavaScript，无需框架，轻量快速。</li>
+            <li>移动端优先设计：响应式布局、触摸友好、完美适配手机屏幕。</li>
+            <li>完善错误处理：文件验证、网络错误、API 错误提示。</li>
+            <li>启动本地服务器（python3 -m http.server 8000），可预览效果。</li>
+          </ul>
+          <div class="note">
+            <strong>技术亮点：</strong>纯前端实现、无存储方案、移动端优先、完善的错误处理。本地服务器已启动，访问 http://localhost:8000 可预览。
+          </div>
+        </div>
+      </article>
+
+      <article>
+        <div class="bar">
+          <span>2026-03-07 16:30:00</span>
+          <span>确定技术路线与存储方案</span>
+        </div>
+        <div class="content">
+          <h2>新增</h2>
+          <ul>
+            <li>确定验证阶段采用"无存储方案"：发型模板本地存储，用户照片不存储，结果图使用 API 返回的临时 URL。</li>
+            <li>记录存储方案对比：方案 1（无存储）、方案 2（火山 TOS）、方案 3（云函数 + 临时存储）。</li>
+          </ul>
+          <h2>改善</h2>
+          <ul>
+            <li>更新 README.md，添加存储方案决策说明。</li>
+            <li>更新下一步计划，明确 H5 前端开发和云函数部署的具体任务。</li>
+          </ul>
+          <div class="note">
+            <strong>决策理由：</strong>验证阶段优先快速验证功能，避免过度配置。保护用户隐私（不存储照片），零成本，适合 MVP。
+          </div>
+        </div>
+      </article>
+
+      <article>
+        <div class="bar">
+          <span>2026-03-07 16:10:00</span>
+          <span>换发型功能测试成功</span>
+        </div>
+        <div class="content">
+          <h2>新增</h2>
+          <ul>
+            <li>创建换发型测试脚本 test-hair-swap.js，支持多图测试。</li>
+            <li>安装 glob 包解决中文文件名查找问题。</li>
+            <li>准备测试图片：照片 01.png（客户照）、发型 01.png、发型 02.png（发型模板）。</li>
+          </ul>
+          <h2>修复</h2>
+          <ul>
+            <li>解决文件路径问题：使用 glob 同步查找文件，避免中文路径编码问题。</li>
+            <li>添加文件存在性检查和详细日志输出。</li>
+          </ul>
+          <h2>改善</h2>
+          <ul>
+            <li>运行 npm run test:hair 完成两次换发型测试。</li>
+            <li>测试 1（照片 01 + 发型 02）：成功，生成 1664x2496 图片，消耗 16224 tokens。</li>
+            <li>测试 2（照片 01 + 发型 01）：成功，生成 1664x2496 图片，消耗 16224 tokens。</li>
+            <li>两次测试总成本：约 0.44 元（0.22 元/张 × 2 张）。</li>
+          </ul>
+          <div class="note">
+            <strong>测试结论：</strong>火山引擎 doubao-seedream-5-0-260128 模型可以成功实现换发型功能，脸部、背景保持良好，发际线自然。
+          </div>
+        </div>
+      </article>
+
+      <article>
+        <div class="bar">
+          <span>2026-03-07 15:45:00</span>
+          <span>项目初始化与文档创建</span>
+        </div>
+        <div class="content">
+          <h2>新增</h2>
+          <ul>
+            <li>创建项目基础结构：package.json、.env.example、.gitignore。</li>
+            <li>创建项目说明文档 README.md，包含项目简介、已完成工作、下一步计划。</li>
+            <li>创建迭代日志文件 iteration-log.html，采用 HTML 格式记录。</li>
+            <li>创建 API 测试脚本 test-api.js，用于验证 API 连通性。</li>
+          </ul>
+          <h2>改善</h2>
+          <ul>
+            <li>更新项目方案文档 h5_volcengine_demo_plan.html，添加实际配置信息章节。</li>
+          </ul>
+        </div>
+      </article>
+
+      <article>
+        <div class="bar">
+          <span>2026-03-07 15:30:00</span>
+          <span>火山引擎 API 配置与测试</span>
+        </div>
+        <div class="content">
+          <h2>新增</h2>
+          <ul>
+            <li>注册火山引擎账号，开通 doubao-seedream-5-0-260128 模型服务。</li>
+            <li>创建推理接入点，获取 API Key：bbb3102e-6d74-4607-823c-573fbe2e7581。</li>
+            <li>配置环境变量 .env 文件，包含 API Key、Model ID、Base URL。</li>
+          </ul>
+          <h2>修复</h2>
+          <ul>
+            <li>修正 Model ID 格式：从 doubao-seedream-5.0-260128 改为 doubao-seedream-5-0-260128（点号改连字符）。</li>
+            <li>解决 404 错误：确认正确的 API 端点和模型参数格式。</li>
+          </ul>
+          <h2>改善</h2>
+          <ul>
+            <li>运行 npm test 验证 API 连通性，文生图测试成功。</li>
+            <li>生成第一张测试图片（2048x2048），消耗 16384 tokens。</li>
+          </ul>
+          <div class="note">
+            <strong>关键发现：</strong>Model ID 必须使用火山引擎控制台示例代码中的准确值，不能自行推测格式。
+          </div>
+        </div>
+      </article>
+    </main>
+  </div>
+
+  <!-- 项目进展标签页 -->
+  <div id="tab-progress" class="tab-content">
+    <main>
+      <!-- 待完成工作 -->
+      <div class="progress-section">
+        <h3>📋 待完成工作</h3>
+        <div class="progress-item">
+          <span class="badge badge-todo">待办</span>
+          <span>部署云函数（安全存储 API Key，调用火山引擎 API）</span>
+        </div>
+        <div class="progress-item">
+          <span class="badge badge-todo">待办</span>
+          <span>配置前端 API 地址并测试完整流程</span>
+        </div>
+        <div class="progress-item">
+          <span class="badge badge-todo">待办</span>
+          <span>手机兼容性测试与性能优化</span>
+        </div>
+        <div class="progress-item">
+          <span class="badge badge-todo">待办</span>
+          <span>验证"无存储方案"的用户体验（结果图下载保存）</span>
+        </div>
+        <div class="progress-item">
+          <span class="badge badge-todo">待办</span>
+          <span>后续迭代：多角度模板、更多发型模板、微信小程序版本</span>
+        </div>
+      </div>
+
+      <!-- 已完成工作 -->
+      <div class="progress-section">
+        <h3>✅ 已完成工作</h3>
+        <div class="progress-item">
+          <span class="badge badge-done">完成</span>
+          <span>注册火山引擎账号，开通 doubao-seedream-5-0-260128 模型服务</span>
+          <span class="time">2026-03-07 15:30</span>
+        </div>
+        <div class="progress-item">
+          <span class="badge badge-done">完成</span>
+          <span>创建推理接入点，获取 API Key</span>
+          <span class="time">2026-03-07 15:30</span>
+        </div>
+        <div class="progress-item">
+          <span class="badge badge-done">完成</span>
+          <span>创建 API 测试脚本 test-api.js，文生图测试通过</span>
+          <span class="time">2026-03-07 15:45</span>
+        </div>
+        <div class="progress-item">
+          <span class="badge badge-done">完成</span>
+          <span>创建换发型测试脚本 test-hair-swap.js</span>
+          <span class="time">2026-03-07 16:10</span>
+        </div>
+        <div class="progress-item">
+          <span class="badge badge-done">完成</span>
+          <span>换发型测试 1（照片 01 + 发型 02）成功</span>
+          <span class="time">2026-03-07 16:10</span>
+        </div>
+        <div class="progress-item">
+          <span class="badge badge-done">完成</span>
+          <span>换发型测试 2（照片 01 + 发型 01）成功</span>
+          <span class="time">2026-03-07 16:10</span>
+        </div>
+        <div class="progress-item">
+          <span class="badge badge-done">完成</span>
+          <span>准备测试图片（照片 01.png、发型 01.png、发型 02.png）</span>
+          <span class="time">2026-03-07 16:10</span>
+        </div>
+        <div class="progress-item">
+          <span class="badge badge-done">完成</span>
+          <span>创建项目文档（README.md、iteration-log.html、h5_volcengine_demo_plan.html）</span>
+          <span class="time">2026-03-07 16:30</span>
+        </div>
+        <div class="progress-item">
+          <span class="badge badge-done">完成</span>
+          <span>确定验证阶段采用"无存储方案"</span>
+          <span class="time">2026-03-07 16:30</span>
+        </div>
+        <div class="progress-item">
+          <span class="badge badge-done">完成</span>
+          <span>完成 H5 Demo 前端开发（移动端优先，纯 HTML/CSS/JS）</span>
+          <span class="time">2026-03-07 17:00</span>
+        </div>
+        <div class="progress-item">
+          <span class="badge badge-done">完成</span>
+          <span>创建云函数部署文档和配置指南</span>
+          <span class="time">2026-03-07 17:00</span>
+        </div>
+        <div class="progress-item">
+          <span class="badge badge-done">完成</span>
+          <span>启动本地服务器，H5 Demo 可预览</span>
+          <span class="time">2026-03-07 17:00</span>
+        </div>
+        <div class="progress-item">
+          <span class="badge badge-done">完成</span>
+          <span>添加生成记录功能（localStorage 持久化存储）</span>
+          <span class="time">2026-03-07 18:00</span>
+        </div>
+        <div class="progress-item">
+          <span class="badge badge-done">完成</span>
+          <span>修复保存图片 CORS 问题（新窗口打开，长按保存）</span>
+          <span class="time">2026-03-07 18:00</span>
+        </div>
+        <div class="progress-item">
+          <span class="badge badge-done">完成</span>
+          <span>优化历史记录交互（点击方块直接查看）</span>
+          <span class="time">2026-03-07 18:00</span>
+        </div>
+        <div class="progress-item">
+          <span class="badge badge-done">完成</span>
+          <span>更新项目文档（README.md、iteration-log.html）</span>
+          <span class="time">2026-03-07 18:00</span>
+        </div>
+      </div>
+    </main>
+  </div>
+
+  <script>
+    function switchTab(tabName) {
+      // 隐藏所有内容
+      document.querySelectorAll('.tab-content').forEach(content => {
+        content.classList.remove('active');
+      });
+
+      // 移除所有按钮激活状态
+      document.querySelectorAll('.tab-btn').forEach(btn => {
+        btn.classList.remove('active');
+      });
+
+      // 激活选中的标签
+      document.getElementById('tab-' + tabName).classList.add('active');
+      event.target.classList.add('active');
+    }
+  </script>
+</body>
+
+</html>
