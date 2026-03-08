@@ -1,0 +1,13 @@
+{
+  "name": "hair-swap-tencent",
+  "version": "1.0.0",
+  "description": "HairSwap for Tencent Cloud SCF",
+  "main": "index.js",
+  "scripts": {
+    "start": "node index.js"
+  },
+  "dependencies": {
+    "axios": "^1.6.0",
+    "sharp": "^0.34.5"
+  }
+}

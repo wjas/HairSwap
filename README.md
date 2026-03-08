@@ -69,7 +69,7 @@
 
 **免费额度**：新用户 100 次免费调用（有效期 30 天）
 
-**当前版本**：v1.3.0（2026-03-08）
+**当前版本**：v1.4.0（2026-03-08）
 
 ---
 
@@ -77,7 +77,7 @@
 
 ### 火山引擎部署
 - ✅ 云函数已部署并运行成功（状态：Ready）
-- ✅ 函数服务代码已打包为 vein-function.zip
+- ✅ 函数服务代码已打包为 vein-function-fixed.zip（包含历史记录）
 - ✅ 已配置 Serverless 网关实例（免托管费用）
 - ✅ 已配置环境变量（VOLCANO_API_KEY、VOLCANO_MODEL、VOLCANO_ENDPOINT）
 - ✅ 历史记录已同步到云端（包含所有历史生成记录）
@@ -85,13 +85,43 @@
 
 ### Vercel 部署
 - ✅ Vercel 部署配置已创建（vercel.json）
-- ⏳ 可随时部署到 Vercel（完全免费）
+- ✅ 已部署到 Vercel（https://hair-swap.vercel.app/）
+- ✅ 发型缩略图已修复（已提交到 Git）
+- ✅ localStorage 历史记录支持
+
+### 腾讯云部署
+- ✅ 腾讯云部署方案已准备（TENCENT_CLOUD_DEPLOY.md、TENCENT_CLOUD_STEPS.md）
+- ✅ 腾讯云部署代码包已准备（tencent-cloud-function.zip，72MB，包含历史记录）
+- ✅ 轻量应用服务器方案已准备
+
+### CloudBase 部署
+- ✅ CloudBase 部署方案已准备（CLOUDBASE_DEPLOY.md）
+- ✅ CloudBase 云函数代码已准备（cloudbase/functions/）
 
 ### 部署文档
 - `VEIN_DEPLOYMENT.md` - 火山引擎完整部署指南
 - `VEIN_DEPLOY_STEPS.md` - 火山引擎详细部署步骤
+- `TENCENT_CLOUD_DEPLOY.md` - 腾讯云部署指南
+- `TENCENT_CLOUD_STEPS.md` - 腾讯云详细部署步骤
+- `CLOUDBASE_DEPLOY.md` - CloudBase 部署指南
 - `DEPLOYMENT_OPTIONS.md` - 部署方案对比
 - `QUICK_DEPLOY.md` - 快速部署指南
+- `VERCEL_DEPLOY_CHECKLIST.md` - Vercel 部署检查清单
+
+---
+
+## 缩略图功能
+- ✅ 历史记录缩略图：result_thumb.jpg（400px 宽，JPEG 格式，质量 80%
+- ✅ 发型模板缩略图：hairstyle{1-4}_thumb.jpg（400px 宽）
+- ✅ 体积优化：约 15-180 倍缩小
+- ✅ 自动生成：新生成图片自动生成缩略图
+
+---
+
+## 历史记录存储策略
+- ✅ 双重保存策略：同时保存到服务器和 localStorage
+- ✅ 优先从服务器加载（局域网环境）
+- ✅ 失败时自动切换到 localStorage（Vercel 静态环境）
 
 ---
 
@@ -161,23 +191,55 @@ HairSwap/
 ├── test-api.js               # API 连通性测试脚本
 ├── test-hair-swap.js         # 换发型功能测试脚本
 ├── 照片 01.png、发型 01.png、发型 02.png  # 测试图片
-└── h5/                       # H5 前端目录
-    ├── index.html            # 主页面
-    ├── test-image.html       # 图片访问测试页面
-    ├── styles/
-    │   └── main.css          # 样式文件
-    ├── js/
-    │   └── app.js            # 前端逻辑
-    ├── images/               # 发型模板
-    ├── history/              # 历史记录存储（文件系统）
-    │   └── [记录 ID]/        # 每条记录独立文件夹
-    │       ├── metadata.json # 元数据
-    │       ├── original.png  # 原图
-    │       └── result.png    # 生成图
-    ├── test-server.js        # 本地测试服务器
-    ├── LOCAL_TESTING.md      # 本地测试指南
-    ├── DEPLOYMENT.md         # 部署指南
-    └── TROUBLESHOOTING.md    # 故障排查
+├── h5/                       # H5 前端目录
+│   ├── index.html            # 主页面
+│   ├── test-image.html       # 图片访问测试页面
+│   ├── styles/
+│   │   └── main.css          # 样式文件
+│   ├── js/
+│   │   └── app.js            # 前端逻辑
+│   ├── images/               # 发型模板
+│   ├── history/              # 历史记录存储（文件系统）
+│   │   └── [记录 ID]/        # 每条记录独立文件夹
+│   │       ├── metadata.json # 元数据
+│   │       ├── original.png  # 原图
+│   │       ├── result.png    # 生成图
+│   │       └── result_thumb.jpg # 缩略图（400px 宽，JPEG）
+│   ├── test-server.js        # 本地测试服务器
+│   ├── LOCAL_TESTING.md      # 本地测试指南
+│   ├── DEPLOYMENT.md         # 部署指南
+│   └── TROUBLESHOOTING.md    # 故障排查
+├── scripts/                  # 脚本目录
+│   └── generate-thumbnails.js # 缩略图生成脚本
+├── vein-function/            # 火山引擎函数服务部署包
+│   ├── index.js             # 函数入口
+│   ├── package.json         # 依赖配置
+│   ├── public/              # 静态资源
+│   │   ├── index.html
+│   │   ├── images/
+│   │   └── history/         # 历史记录
+│   └── generate-thumbnails.js
+├── vein-function-fixed.zip   # 火山引擎部署压缩包
+├── tencent-cloud-function/   # 腾讯云函数服务部署包
+│   ├── index.js
+│   ├── package.json
+│   └── public/
+├── tencent-cloud-function.zip # 腾讯云部署压缩包
+├── cloudbase/                # 腾讯云 CloudBase 部署
+│   ├── functions/
+│   │   └── generate/
+│   │       ├── index.js
+│   │       └── package.json
+│   └── static/
+├── vercel.json              # Vercel 部署配置
+├── VEIN_DEPLOYMENT.md       # 火山引擎部署指南
+├── VEIN_DEPLOY_STEPS.md     # 火山引擎部署步骤
+├── TENCENT_CLOUD_DEPLOY.md  # 腾讯云部署指南
+├── TENCENT_CLOUD_STEPS.md   # 腾讯云部署步骤
+├── CLOUDBASE_DEPLOY.md      # CloudBase 部署指南
+├── DEPLOYMENT_OPTIONS.md    # 部署方案对比
+├── QUICK_DEPLOY.md          # 快速部署指南
+└── VERCEL_DEPLOY_CHECKLIST.md # Vercel 检查清单
 ```
 
 ---

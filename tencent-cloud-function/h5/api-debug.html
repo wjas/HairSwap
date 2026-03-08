@@ -1,0 +1,292 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>API 调试工具</title>
+  <style>
+    body {
+      font-family: Arial, sans-serif;
+      padding: 20px;
+      max-width: 900px;
+      margin: 0 auto;
+      background: #f5f5f5;
+    }
+    .section {
+      background: white;
+      padding: 20px;
+      margin: 20px 0;
+      border-radius: 8px;
+      box-shadow: 0 2px 4px rgba(0,0,0,0.1);
+    }
+    h2 {
+      margin-top: 0;
+      color: #333;
+    }
+    button {
+      background: #007bff;
+      color: white;
+      border: none;
+      padding: 12px 24px;
+      border-radius: 5px;
+      cursor: pointer;
+      margin: 5px;
+      font-size: 14px;
+    }
+    button:hover {
+      background: #0056b3;
+    }
+    button:disabled {
+      background: #ccc;
+      cursor: not-allowed;
+    }
+    .result {
+      background: #f8f9fa;
+      padding: 15px;
+      margin: 15px 0;
+      border-radius: 5px;
+      font-family: 'Courier New', monospace;
+      font-size: 13px;
+      white-space: pre-wrap;
+      word-break: break-all;
+    }
+    .success {
+      background: #d4edda;
+      color: #155724;
+      border: 1px solid #c3e6cb;
+    }
+    .error {
+      background: #f8d7da;
+      color: #721c24;
+      border: 1px solid #f5c6cb;
+    }
+    .info {
+      background: #d1ecf1;
+      color: #0c5460;
+      border: 1px solid #bee5eb;
+    }
+    img {
+      max-width: 100%;
+      margin: 10px 0;
+      border-radius: 5px;
+    }
+    .file-input {
+      margin: 10px 0;
+    }
+    .log {
+      font-size: 12px;
+      color: #666;
+      margin: 5px 0;
+    }
+  </style>
+</head>
+<body>
+  <h1> API 调试工具</h1>
+  
+  <div class="section">
+    <h2>1. 上传测试图片</h2>
+    <div class="file-input">
+      <input type="file" id="photo-input" accept="image/png,image/jpeg">
+    </div>
+    <div id="photo-preview"></div>
+    <div class="log" id="image-info"></div>
+  </div>
+
+  <div class="section">
+    <h2>2. 测试 API</h2>
+    <button onclick="testWithRealImage()">使用实际图片测试</button>
+    <button onclick="testWithSmallImage()">使用小图测试</button>
+    <div id="api-result"></div>
+  </div>
+
+  <div class="section">
+    <h2>3. 请求详情</h2>
+    <div id="request-details" class="result info" style="display:none;"></div>
+  </div>
+
+  <script>
+    let selectedPhotoBase64 = null;
+    let selectedPhotoFile = null;
+
+    document.getElementById('photo-input').addEventListener('change', function(e) {
+      const file = e.target.files[0];
+      if (!file) return;
+      
+      selectedPhotoFile = file;
+      
+      const reader = new FileReader();
+      reader.onload = function(e) {
+        selectedPhotoBase64 = e.target.result;
+        
+        // 显示预览
+        document.getElementById('photo-preview').innerHTML = 
+          `<img src="${e.target.result}" style="max-height: 300px;">`;
+        
+        // 显示图片信息
+        const sizeKB = (e.target.result.length / 1024).toFixed(2);
+        const dimensions = getImageDimensions(e.target.result);
+        document.getElementById('image-info').innerHTML = 
+          `文件大小：${sizeKB} KB | ${dimensions}`;
+      };
+      reader.readAsDataURL(file);
+    });
+
+    function getImageDimensions(dataUrl) {
+      return new Promise((resolve) => {
+        const img = new Image();
+        img.onload = () => {
+          resolve(`${img.width}x${img.height}px`);
+        };
+        img.src = dataUrl;
+        setTimeout(() => resolve('未知尺寸'), 1000);
+      });
+    }
+
+    async function testWithRealImage() {
+      const resultDiv = document.getElementById('api-result');
+      
+      if (!selectedPhotoBase64) {
+        resultDiv.innerHTML = '<div class="result error">请先选择图片</div>';
+        return;
+      }
+      
+      resultDiv.innerHTML = '<div class="result info">🔄 正在测试，请稍候...</div>';
+      
+      const startTime = Date.now();
+      
+      try {
+        // 读取发型图片
+        const hairstyleResponse = await fetch('images/hairstyle1.png');
+        const hairstyleBlob = await hairstyleResponse.blob();
+        const hairstyleBase64 = await blobToBase64(hairstyleBlob);
+        
+        const requestBody = {
+          photoBase64: selectedPhotoBase64,
+          hairstylePath: 'images/hairstyle1.png',
+          prompt: '请保持脸部、五官、背景不变，仅将发型替换为参考图中的发型，发际线自然，发色一致，高质量，逼真'
+        };
+        
+        // 显示请求详情
+        document.getElementById('request-details').style.display = 'block';
+        document.getElementById('request-details').innerHTML = 
+          `📋 请求参数:\n${JSON.stringify({
+            ...requestBody,
+            image: ['[base64]', '[base64]']
+          }, null, 2)}\n\n照片大小：${(selectedPhotoBase64.length / 1024).toFixed(2)} KB\n发型大小：${(hairstyleBase64.length / 1024).toFixed(2)} KB`;
+        
+        const response = await fetch('http://localhost:3000/generate', {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json'
+          },
+          body: JSON.stringify(requestBody)
+        });
+        
+        const endTime = Date.now();
+        const duration = endTime - startTime;
+        
+        const data = await response.json();
+        
+        if (response.ok && data.success) {
+          resultDiv.innerHTML = `
+            <div class="result success">
+✅ 生成成功！
+⏱️  耗时：${duration}ms
+🔗 URL: ${data.imageUrl}
+            </div>
+            <img src="${data.imageUrl}">
+          `;
+        } else {
+          resultDiv.innerHTML = `
+            <div class="result error">
+❌ 生成失败
+状态码：${response.status}
+错误：${JSON.stringify(data, null, 2)}
+            </div>
+          `;
+        }
+      } catch (error) {
+        const endTime = Date.now();
+        const duration = endTime - startTime;
+        
+        resultDiv.innerHTML = `
+          <div class="result error">
+❌ 请求失败
+⏱️  耗时：${duration}ms
+错误：${error.message}
+
+💡 请检查:
+- API 服务器是否运行 (端口 3000)
+- 图片是否太大（建议<5MB）
+- API Key 是否正确
+          </div>
+        `;
+      }
+    }
+
+    async function testWithSmallImage() {
+      const resultDiv = document.getElementById('api-result');
+      resultDiv.innerHTML = '<div class="result info">🔄 使用小图测试...</div>';
+      
+      // 创建一个小的测试图片
+      const canvas = document.createElement('canvas');
+      canvas.width = 100;
+      canvas.height = 100;
+      const ctx = canvas.getContext('2d');
+      ctx.fillStyle = '#ff0000';
+      ctx.fillRect(0, 0, 100, 100);
+      
+      const smallImage = canvas.toDataURL('image/png');
+      
+      try {
+        const response = await fetch('http://localhost:3000/generate', {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json'
+          },
+          body: JSON.stringify({
+            photoBase64: smallImage,
+            hairstylePath: 'images/hairstyle1.png',
+            prompt: 'test'
+          })
+        });
+        
+        const data = await response.json();
+        
+        if (response.ok && data.success) {
+          resultDiv.innerHTML = `
+            <div class="result success">
+✅ 小图测试成功！
+URL: ${data.imageUrl}
+            </div>
+            <img src="${data.imageUrl}">
+          `;
+        } else {
+          resultDiv.innerHTML = `
+            <div class="result error">
+❌ 小图测试失败
+${JSON.stringify(data, null, 2)}
+            </div>
+          `;
+        }
+      } catch (error) {
+        resultDiv.innerHTML = `
+          <div class="result error">
+❌ 小图测试失败
+${error.message}
+          </div>
+        `;
+      }
+    }
+
+    function blobToBase64(blob) {
+      return new Promise((resolve, reject) => {
+        const reader = new FileReader();
+        reader.onload = () => resolve(reader.result);
+        reader.onerror = reject;
+        reader.readAsDataURL(blob);
+      });
+    }
+  </script>
+</body>
+</html>

@@ -200,6 +200,41 @@
     <main>
       <article>
         <div class="bar">
+          <span>2026-03-08 缩略图优化与多平台部署准备</span>
+          <span>v1.4.0</span>
+        </div>
+        <div class="content">
+          <h2>新增</h2>
+          <ul>
+            <li>✨ 缩略图功能：历史记录和发型模板生成 400px 宽缩略图（JPEG 格式，质量 80%）</li>
+            <li>✨ 缩略图体积优化：从 PNG 改为 JPEG，体积缩小约 15-180 倍</li>
+            <li>✨ localStorage 历史记录支持：优先从服务器加载，失败时自动切换到 localStorage</li>
+            <li>✨ 腾讯云部署方案：TENCENT_CLOUD_DEPLOY.md、TENCENT_CLOUD_STEPS.md</li>
+            <li>✨ 腾讯云部署代码包：tencent-cloud-function.zip（72MB，包含历史记录）</li>
+            <li>✨ CloudBase 部署方案：CLOUDBASE_DEPLOY.md、cloudbase/ 目录</li>
+            <li>✨ 缩略图生成脚本：scripts/generate-thumbnails.js</li>
+          </ul>
+          <h2>修复</h2>
+          <ul>
+            <li>🐛 修复 Vercel 发型缩略图加载失败：从 .gitignore 移除缩略图并提交到 Git</li>
+            <li>🐛 修复 Vercel 历史记录问题：实现 localStorage 本地存储作为备选方案</li>
+            <li>🐛 修复缩略图体积过大问题：将 PNG 改为 JPEG，质量设置为 80%</li>
+          </ul>
+          <h2>改善</h2>
+          <ul>
+            <li>🎨 缩略图自动生成：新生成的图片自动生成 400px 宽缩略图</li>
+            <li>🎨 历史记录双重保存策略：同时保存到服务器和 localStorage</li>
+            <li>🎨 多平台部署准备：火山引擎、腾讯云、Vercel 三种方案</li>
+            <li>🎨 所有部署代码包独立，互不影响本地开发</li>
+          </ul>
+          <div class="note">
+            <strong>技术亮点：</strong>缩略图采用 JPEG 格式显著减小体积（从 362KB 减少到 23KB）。localStorage 双重备份策略确保 Vercel 等静态环境也能正常使用历史记录。多平台部署包独立管理，本地开发环境不受影响。
+          </div>
+        </div>
+      </article>
+
+      <article>
+        <div class="bar">
           <span>2026-03-08 云部署准备</span>
           <span>v1.3.0</span>
         </div>
