@@ -398,6 +398,7 @@ const server = http.createServer(async (req, res) => {
       }
 
       const imageBuffer = fs.readFileSync(imagePath);
+      const stats = fs.statSync(imagePath);
       console.log('✅ 图片发送成功:', imageBuffer.length, 'bytes');
 
       // 根据文件扩展名设置正确的 Content-Type
@@ -406,8 +407,10 @@ const server = http.createServer(async (req, res) => {
         contentType = 'image/jpeg';
       }
 
-      // 添加 CORS 头
+      // 添加 CORS 头和缓存头
       res.setHeader('Access-Control-Allow-Origin', '*');
+      res.setHeader('Cache-Control', 'public, max-age=86400'); // 缓存 24 小时
+      res.setHeader('Last-Modified', stats.mtime.toUTCString());
       res.writeHead(200, { 'Content-Type': contentType });
       res.end(imageBuffer);
     } catch (error) {
