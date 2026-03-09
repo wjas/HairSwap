@@ -1,3 +1,53 @@
+// ============================================================================
+// 调试工具（用于移动端调试）
+// 使用说明：详见 /DEBUG_TOOL.md
+// ============================================================================
+// 版本号：每次更新代码前请 +1，用于验证缓存刷新
+const APP_VERSION = 1;
+
+// 调试面板功能
+function initDebugPanel() {
+  const debugBtn = document.getElementById('debug-btn');
+  const debugPanel = document.getElementById('debug-panel');
+
+  if (!debugBtn || !debugPanel) return;
+
+  let isVisible = false;
+  const logs = [];
+
+  // 重写 console.log
+  const originalLog = console.log;
+  console.log = function (...args) {
+    logs.push(args.join(' '));
+    if (logs.length > 50) logs.shift(); // 只保留最近 50 条
+    if (isVisible) {
+      debugPanel.innerHTML = logs.join('<br>');
+      debugPanel.scrollTop = debugPanel.scrollHeight;
+    }
+    originalLog.apply(console, args);
+  };
+
+  // 点击按钮切换显示
+  debugBtn.onclick = () => {
+    isVisible = !isVisible;
+    debugPanel.style.display = isVisible ? 'block' : 'none';
+    if (isVisible) {
+      debugPanel.innerHTML = logs.join('<br>');
+      debugPanel.scrollTop = debugPanel.scrollHeight;
+    }
+  };
+
+  console.log('🔧 调试面板已初始化');
+}
+
+// 页面加载时初始化调试面板
+if (document.readyState === 'loading') {
+  document.addEventListener('DOMContentLoaded', initDebugPanel);
+} else {
+  initDebugPanel();
+}
+// ============================================================================
+
 class HairSwapApp {
   constructor() {
     this.state = {
@@ -7,7 +57,7 @@ class HairSwapApp {
       hairstylePath: null,
       resultImage: null,
       history: [], // 生成历史记录
-      serverIP: '192.168.2.60' // 局域网服务器 IP（可配置）
+      currentModel: 'ep-20260309025356-rp498' // 默认模型：4.5
     };
 
     this.config = {
@@ -18,7 +68,11 @@ class HairSwapApp {
         'style1': 'hairstyle1.png',
         'style2': 'hairstyle2.png',
         'style3': 'hairstyle3.png',
-        'style4': 'hairstyle4.png'
+        'style4': 'hairstyle4.png',
+        'style5': 'hairstyle5.png',
+        'style6': 'hairstyle6.png',
+        'style7': 'hairstyle7.png',
+        'style8': 'hairstyle8.png'
       }
     };
 
@@ -28,6 +82,20 @@ class HairSwapApp {
     this.init();
     this.loadHistory(); // 加载历史记录
     this.loadPhotoFromStorage(); // 加载本地存储的照片
+    // this.showVersion(); // 显示版本号（调试时使用，平时注释掉）
+  }
+
+  // 显示版本号（用于验证缓存刷新）
+  showVersion() {
+    console.log('📦 HairSwap App 版本:', APP_VERSION);
+    // 在页面底部显示版本号（样式与 DEBUG 按钮一致）
+    setTimeout(() => {
+      const versionBtn = document.createElement('button');
+      versionBtn.style.cssText = 'position:fixed;bottom:5px;right:10px;font-size:10px;padding:2px 6px;background:#007bff;color:#fff;border:none;border-radius:4px;z-index:9999;cursor:pointer;';
+      versionBtn.textContent = 'v' + APP_VERSION;
+      versionBtn.title = 'HairSwap 版本号';
+      document.body.appendChild(versionBtn);
+    }, 1000);
   }
 
   init() {
@@ -44,10 +112,12 @@ class HairSwapApp {
     const regenerateBtn = document.getElementById('regenerate-btn');
     const saveBtn = document.getElementById('save-btn');
     const historyBtn = document.getElementById('history-btn');
+    const modelBtn = document.getElementById('model-btn');
     const cameraBtn = document.getElementById('camera-btn');
     const galleryBtn = document.getElementById('gallery-btn');
     const cameraInput = document.getElementById('camera-input');
     const galleryInput = document.getElementById('gallery-input');
+    const resultHeader = document.getElementById('result-header');
 
     photoPreview.addEventListener('click', () => {
       if (!this.state.photo) {
@@ -56,15 +126,10 @@ class HairSwapApp {
     });
 
     // 手机端按钮事件
-    if (cameraBtn && galleryBtn) {
+    if (cameraBtn) {
       cameraBtn.addEventListener('click', () => {
-        console.log('📸 点击拍照按钮');
-        cameraInput.click();
-      });
-      
-      galleryBtn.addEventListener('click', () => {
-        console.log('🖼️ 点击相册按钮');
-        galleryInput.click();
+        console.log('📸 点击上传照片按钮');
+        photoInput.click();
       });
     }
 
@@ -103,6 +168,23 @@ class HairSwapApp {
       }
     });
 
+    // 让"换发型效果"标题也能点击返回
+    if (resultHeader) {
+      const resultTitle = resultHeader.querySelector('h2');
+      if (resultTitle) {
+        resultTitle.addEventListener('click', () => {
+          console.log('🔙 点击标题返回，isInDetailPage:', this.isInDetailPage);
+          if (this.isInDetailPage) {
+            console.log('📋 从详情页返回列表页');
+            this.showHistory();
+          } else {
+            console.log('🏠 从其他页面返回主页');
+            this.showPage('home-page');
+          }
+        });
+      }
+    }
+
     regenerateBtn.addEventListener('click', () => {
       this.showPage('home-page');
     });
@@ -114,6 +196,13 @@ class HairSwapApp {
     historyBtn.addEventListener('click', () => {
       this.showHistory();
     });
+
+    // 模型切换按钮事件
+    if (modelBtn) {
+      modelBtn.addEventListener('click', () => {
+        this.toggleModel();
+      });
+    }
 
     const hairstyleItems = document.querySelectorAll('.hairstyle-item[data-style]');
     hairstyleItems.forEach(item => {
@@ -152,13 +241,20 @@ class HairSwapApp {
   updatePhotoPreview() {
     const previewArea = document.getElementById('photo-preview');
     const previewImage = document.getElementById('photo-image');
+    const mobileUploadButtons = document.getElementById('mobile-upload-buttons');
 
     if (this.state.photo) {
       previewArea.classList.add('has-image');
       previewImage.src = this.state.photoBase64;
+      if (mobileUploadButtons) {
+        mobileUploadButtons.classList.add('hidden');
+      }
     } else {
       previewArea.classList.remove('has-image');
       previewImage.src = '';
+      if (mobileUploadButtons) {
+        mobileUploadButtons.classList.remove('hidden');
+      }
     }
   }
 
@@ -209,6 +305,18 @@ class HairSwapApp {
     });
   }
 
+  // 切换模型
+  toggleModel() {
+    if (this.state.currentModel === 'ep-20260309025356-rp498') {
+      this.state.currentModel = 'doubao-seedream-5-0-260128';
+      document.getElementById('model-btn').querySelector('span').textContent = '5.0 lite';
+    } else {
+      this.state.currentModel = 'ep-20260309025356-rp498';
+      document.getElementById('model-btn').querySelector('span').textContent = '4.5';
+    }
+    console.log('🔄 已切换模型:', this.state.currentModel);
+  }
+
   async generateHairstyle() {
     if (!this.state.photo || !this.state.selectedHairstyle) {
       this.showToast('请先上传照片并选择发型');
@@ -233,6 +341,7 @@ class HairSwapApp {
         body: JSON.stringify({
           photoBase64: this.state.photoBase64,
           hairstylePath: this.state.hairstylePath,
+          model: this.state.currentModel,
           prompt: '将图 1 的发型换为图 2 的发型，保持其他元素不变'
         })
       });
@@ -261,9 +370,9 @@ class HairSwapApp {
 
   async generateWithMockMode() {
     // 本地测试模式：调用本地 Node.js 测试脚本
-    // 使用服务器 IP 而不是 localhost（支持局域网访问）
+    // 使用 getBackendUrl() 获取正确的服务器地址（支持公网访问）
     const hairstyleFullPath = `images/${this.state.hairstylePath}`;
-    const serverUrl = `http://${this.state.serverIP}:3001/generate`;
+    const serverUrl = this.getBackendUrl() + '/generate';
 
     console.log('📡 请求服务器:', serverUrl);
 
@@ -276,6 +385,7 @@ class HairSwapApp {
         body: JSON.stringify({
           photoBase64: this.state.photoBase64,
           hairstylePath: hairstyleFullPath,
+          model: this.state.currentModel,
           prompt: '将图 1 的发型换为图 2 的发型，保持其他元素不变'
         })
       });
@@ -347,7 +457,7 @@ class HairSwapApp {
 
     // 重置详情页标记
     this.isInDetailPage = false;
-    
+
     // 重置返回按钮行为为返回主页
     const resultBackBtn = document.getElementById('back-btn');
     const resultHeader = document.getElementById('result-header');
@@ -375,9 +485,17 @@ class HairSwapApp {
     const compareBtn = document.getElementById('compare-btn');
     const resultImage = document.getElementById('result-image');
 
-    if (!compareBtn || !this.state.photoBase64) {
+    // 支持 URL 或 base64
+    const originalImage = this.state.originalImageUrl || this.state.photoBase64;
+    if (!compareBtn || !originalImage) {
       if (compareBtn) compareBtn.style.display = 'none';
       return;
+    }
+
+    // 预加载原图，提升用户体验
+    if (this.state.originalImageUrl) {
+      const preloadImg = new Image();
+      preloadImg.src = this.state.originalImageUrl;
     }
 
     compareBtn.style.display = 'flex';
@@ -386,8 +504,8 @@ class HairSwapApp {
     let pressTimer;
 
     const showOriginal = () => {
-      if (this.state.photoBase64) {
-        resultImage.src = this.state.photoBase64;
+      if (originalImage) {
+        resultImage.src = originalImage;
         isShowingOriginal = true;
       }
     };
@@ -471,8 +589,22 @@ class HairSwapApp {
             imageUrl: record.imageUrl
           };
         });
+        // 按时间倒序排列（最新的在前）
+        this.state.history.sort((a, b) => {
+          try {
+            const dateA = a.createdAt ? new Date(a.createdAt).getTime() : 0;
+            const dateB = b.createdAt ? new Date(b.createdAt).getTime() : 0;
+            if (!isNaN(dateB) && !isNaN(dateA)) {
+              return dateB - dateA;
+            }
+          } catch (e) {
+            console.warn('日期排序失败，使用ID排序:', e);
+          }
+          // 如果日期排序失败，使用 ID 排序（ID 是时间戳）
+          return (b.id || 0) - (a.id || 0);
+        });
         console.log('✅ 从服务器加载历史记录:', this.state.history.length, '条');
-        
+
         // 同时保存到 localStorage 作为备份
         this.saveHistoryToLocalStorage();
         return;
@@ -480,12 +612,26 @@ class HairSwapApp {
     } catch (error) {
       console.log('⚠️ 服务器加载失败，尝试从 localStorage 加载:', error.message);
     }
-    
+
     // 服务器加载失败，从 localStorage 加载
     try {
       const saved = localStorage.getItem('hairSwapHistory');
       if (saved) {
         this.state.history = JSON.parse(saved);
+        // 按时间倒序排列（最新的在前）
+        this.state.history.sort((a, b) => {
+          try {
+            const dateA = a.createdAt ? new Date(a.createdAt).getTime() : 0;
+            const dateB = b.createdAt ? new Date(b.createdAt).getTime() : 0;
+            if (!isNaN(dateB) && !isNaN(dateA)) {
+              return dateB - dateA;
+            }
+          } catch (e) {
+            console.warn('日期排序失败，使用ID排序:', e);
+          }
+          // 如果日期排序失败，使用 ID 排序（ID 是时间戳）
+          return (b.id || 0) - (a.id || 0);
+        });
         console.log('✅ 从 localStorage 加载历史记录:', this.state.history.length, '条');
       } else {
         console.log('ℹ️ localStorage 中没有历史记录');
@@ -594,6 +740,7 @@ class HairSwapApp {
 
         if (daysDiff < 7) {
           this.state.photoBase64 = data.base64;
+          this.state.photo = true; // 标记有照片
           // 更新 UI 显示
           setTimeout(() => {
             const photoPreview = document.getElementById('photo-preview');
@@ -609,6 +756,12 @@ class HairSwapApp {
               const photoRemove = document.getElementById('photo-remove');
               if (photoRemove) {
                 photoRemove.style.display = 'flex';
+              }
+
+              // 隐藏上传按钮
+              const mobileUploadButtons = document.getElementById('mobile-upload-buttons');
+              if (mobileUploadButtons) {
+                mobileUploadButtons.classList.add('hidden');
               }
             }
           }, 100);
@@ -630,11 +783,11 @@ class HairSwapApp {
   // 显示历史记录页面
   async showHistory() {
     console.log('📋 showHistory 开始执行');
-    
+
     // 重置详情页标记
     this.isInDetailPage = false;
     console.log('🏷️ 重置 isInDetailPage 标记为 false');
-    
+
     // 先加载历史记录
     await this.loadHistory();
     console.log('📋 历史记录加载完成');
@@ -692,7 +845,7 @@ class HairSwapApp {
     // 绑定返回按钮事件 - 整个 header 都可点击
     const historyHeader = document.getElementById('history-header');
     const backBtn = document.getElementById('history-back-btn');
-    
+
     // header 整体点击事件
     historyHeader.addEventListener('click', (e) => {
       // 如果点击的是 button 本身，不重复触发
@@ -701,7 +854,7 @@ class HairSwapApp {
         this.showPage('home-page');
       }
     });
-    
+
     // back-btn 点击事件 - 列表页直接返回主页
     backBtn.addEventListener('click', (e) => {
       e.stopPropagation(); // 阻止冒泡
@@ -711,7 +864,9 @@ class HairSwapApp {
 
     // 绑定历史记录项点击事件
     document.querySelectorAll('.history-item').forEach(item => {
-      item.addEventListener('click', () => {
+      item.addEventListener('click', (e) => {
+        e.stopPropagation(); // 阻止冒泡到 header
+        e.preventDefault(); // 阻止默认行为
         const id = parseInt(item.dataset.id);
         this.viewHistoryItem(id);
       });
@@ -729,7 +884,7 @@ class HairSwapApp {
       if (response.ok) {
         const record = await response.json();
         this.state.resultImage = record.imageUrl;
-        this.state.photoBase64 = record.originalImage;
+        this.state.originalImageUrl = record.originalImageUrl;
 
         // 显示结果页面
         const resultImage = document.getElementById('result-image');
@@ -738,7 +893,9 @@ class HairSwapApp {
         // 显示对比按钮和保存按钮
         const compareBtn = document.getElementById('compare-btn');
         const saveBtn = document.getElementById('save-btn');
-        if (compareBtn) compareBtn.style.display = 'flex';
+        // 有原图 URL 或 base64 时才显示对比按钮
+        const hasOriginalImage = this.state.originalImageUrl || this.state.photoBase64;
+        if (compareBtn) compareBtn.style.display = hasOriginalImage ? 'flex' : 'none';
         if (saveBtn) saveBtn.style.display = 'block';
 
         // 设置对比按钮事件
@@ -756,14 +913,14 @@ class HairSwapApp {
         // 绑定详情页 header 点击事件
         const resultHeader = document.getElementById('result-header');
         const resultBackBtn = document.getElementById('back-btn');
-        
+
         // 直接使用 onclick 来控制，避免事件冲突
         resultBackBtn.onclick = (e) => {
           e.stopPropagation(); // 阻止冒泡到 header
           console.log('🔙 点击详情页返回按钮，返回列表页');
           this.showHistory();
         };
-        
+
         // header 整体点击事件（排除 back-btn）
         resultHeader.onclick = (e) => {
           if (e.target !== resultBackBtn && !resultBackBtn.contains(e.target)) {
@@ -782,12 +939,12 @@ class HairSwapApp {
 
   showPage(pageId) {
     console.log('🔄 showPage 被调用:', pageId, new Date().toISOString());
-    
+
     // 如果切换到主页或发型选择页，重置详情页标记
     if (pageId === 'home-page' || pageId === 'hairstyle-page') {
       console.log('🏷️ 重置 isInDetailPage 标记');
       this.isInDetailPage = false;
-      
+
       console.log('⚠️ 切换到主页，移除历史记录页面');
       const historyPage = document.getElementById('history-page');
       if (historyPage) {

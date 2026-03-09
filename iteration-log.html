@@ -1,4 +1,29 @@
 <!doctype html>
+<!--
+  ⚠️ 更新迭代日志前必读！
+  ========================
+  
+  🚨 第一条：必须加时间！必须加时间！必须加时间！
+  
+  ⏰ 时间必须是当前真实时间（用 date 命令查看）
+  
+  格式：YYYY-MM-DD HH:MM 日志标题
+  错误：2026-03-10 5G 问题修复  ❌（缺少时间）
+  错误：2026-03-10 16:45 5G 问题修复  ❌（时间不对）
+  正确：2026-03-10 00:58 5G 问题修复  ✅（真实时间）
+  
+  📝 获取当前时间：
+  在终端运行：date +"%Y-%m-%d %H:%M"
+  
+  🎯 快速检查：
+  - [ ] 时间戳包含 HH:MM 了吗？
+  - [ ] 时间是当前真实时间吗？
+  - [ ] 版本号更新了吗？
+  - [ ] 原因和方案写了吗？
+  
+  更多规范见下方详细说明 ↓
+  ========================
+-->
 <html lang="zh-CN">
 
 <head>
@@ -200,7 +225,285 @@
     <main>
       <article>
         <div class="bar">
-          <span>2026-03-08 缩略图优化与多平台部署准备</span>
+          <span>2026-03-10 00:58 5G 网络无法生图问题完全修复</span>
+          <span>v1.5.2</span>
+        </div>
+        <div class="content">
+          <h2>问题回顾</h2>
+          <ul>
+            <li>🔴 <strong>5G 网络无法生图</strong>：手机使用 5G 网络访问时，生成图片提示"load failed"</li>
+            <li>🟢 <strong>WiFi 环境正常</strong>：同一手机在 WiFi 环境下可以正常生图</li>
+          </ul>
+
+          <h2>深度排查发现的问题</h2>
+          <ul>
+            <li><strong>问题 1：前端代码硬编码局域网 IP</strong>
+              <ul>
+                <li><code>app.js</code> 中：<code>serverIP: '192.168.2.60'</code></li>
+                <li>导致 5G 网络下无法访问公网服务器</li>
+              </ul>
+            </li>
+            <li><strong>问题 2：服务器缺少 .env 配置文件</strong>
+              <ul>
+                <li>服务器上未上传 <code>.env</code> 文件</li>
+                <li>导致 API Key 未加载，返回 401 错误</li>
+              </ul>
+            </li>
+            <li><strong>问题 3：iOS Safari 缓存顽固</strong>
+              <ul>
+                <li>JavaScript 文件被 Safari 强力缓存</li>
+                <li>即使更新代码，浏览器仍使用旧版本</li>
+              </ul>
+            </li>
+          </ul>
+
+          <h2>解决方案与实施</h2>
+
+          <h3>修复 1：移除硬编码 IP，使用动态地址</h3>
+          <ul>
+            <li><strong>修改文件</strong>：<code>h5/js/app.js</code>
+              <ul>
+                <li>删除 <code>this.state.serverIP: '192.168.2.60'</code></li>
+                <li>修改 <code>generateWithMockMode()</code> 使用 <code>getBackendUrl()</code></li>
+              </ul>
+            </li>
+            <li><strong>getBackendUrl() 逻辑</strong>：
+              <ul>
+                <li>file:// 协议或 localhost → 使用 192.168.2.60（本地开发）</li>
+                <li>公网 IP 访问 → 自动使用当前 hostname（生产环境）</li>
+              </ul>
+            </li>
+          </ul>
+
+          <h3>修复 2：上传 .env 配置文件</h3>
+          <ul>
+            <li><strong>操作</strong>：scp 上传 <code>.env</code> 到服务器 <code>/root/HairSwap/</code></li>
+            <li><strong>内容</strong>：包含 VOLCENGINE_API_KEY 等环境变量</li>
+            <li><strong>重启服务</strong>：杀掉旧进程，重启 <code>test-server.js</code></li>
+          </ul>
+
+          <h3>修复 3：添加版本号强制刷新缓存</h3>
+          <ul>
+            <li><strong>修改文件</strong>：<code>h5/index.html</code>
+              <ul>
+                <li>给 <code>app.js</code> 添加版本参数：<code>app.js?v=20260310</code></li>
+              </ul>
+            </li>
+            <li><strong>版本号机制</strong>：
+              <ul>
+                <li>在 <code>app.js</code> 顶部定义 <code>const APP_VERSION = 1</code></li>
+                <li>每次更新代码前 +1</li>
+                <li>页面右下角显示版本号按钮（调试时启用）</li>
+              </ul>
+            </li>
+          </ul>
+
+          <h2>调试工具开发</h2>
+
+          <h3>移动端调试面板</h3>
+          <ul>
+            <li><strong>功能</strong>：在手机上查看 console.log 日志</li>
+            <li><strong>实现</strong>：
+              <ul>
+                <li>重写 <code>console.log</code>，捕获所有日志</li>
+                <li>红色 DEBUG 按钮：点击显示/隐藏日志面板</li>
+                <li>黑色面板：绿色文字显示日志（类似终端）</li>
+              </ul>
+            </li>
+            <li><strong>使用场景</strong>：
+              <ul>
+                <li>无需连接 Mac 电脑</li>
+                <li>实时查看 API 请求 URL 和错误信息</li>
+                <li>验证缓存是否刷新（通过版本号）</li>
+              </ul>
+            </li>
+          </ul>
+
+          <h2>调试日志示例</h2>
+          <pre style="background:#f5f5f5;padding:10px;border-radius:4px;overflow-x:auto;font-size:12px;">
+🔧 调试面板已初始化
+📦 HairSwap App 版本：1
+📸 点击上传照片按钮
+📁 photo-input 文件选择
+🔄 showPage 被调用：loading-page
+✅ showPage 完成：loading-page
+📡 请求服务器：http://106.52.29.87:3001/generate
+💾 历史记录已保存到 localStorage
+✅ 历史记录已保存
+🔄 showPage 被调用：result-page
+✅ showPage 完成：result-page
+💾 历史记录已保存到服务器：发型 8</pre>
+
+          <h2>验证结果</h2>
+          <ul>
+            <li>✅ <strong>5G 网络生图</strong>：成功生成，不再提示"load failed"</li>
+            <li>✅ <strong>API 调用</strong>：正常访问 <code>http://106.52.29.87:3001/generate</code></li>
+            <li>✅ <strong>历史记录</strong>：成功保存到服务器和 localStorage</li>
+            <li>✅ <strong>缓存刷新</strong>：通过版本号可验证是否加载最新代码</li>
+          </ul>
+
+          <h2>技术总结</h2>
+          <ul>
+            <li><strong>避免硬编码</strong>：服务器地址应动态获取，支持多环境</li>
+            <li><strong>配置文件管理</strong>：确保服务器上的 .env 文件始终存在</li>
+            <li><strong>浏览器缓存</strong>：给静态资源添加版本参数强制刷新</li>
+            <li><strong>调试工具</strong>：移动端开发必备，提高效率</li>
+            <li><strong>日志分级</strong>：使用 emoji 标记日志类型（✅ ❌ ⚠️ 📡 等）</li>
+          </ul>
+
+          <div class="note">
+            <strong>完整修复流程：</strong>
+            1. 修改前端代码移除硬编码 IP → 2. 上传 .env 配置文件 → 3. 重启后端服务 →
+            4. 添加版本号机制 → 5. 开发调试工具 → 6. 验证 5G 网络生图成功
+          </div>
+        </div>
+      </article>
+
+      <article>
+        <div class="bar">
+          <span>2026-03-09 20:00 5G 网络访问问题与解决方案尝试</span>
+          <span>v1.5.1</span>
+        </div>
+        <div class="content">
+          <h2>问题描述</h2>
+          <ul>
+            <li>🔴 <strong>5G 网络无法生图</strong>：手机使用 5G 网络访问服务端时，生成图片提示"load failed"</li>
+            <li>🟢 <strong>WiFi 环境正常</strong>：同一手机在 WiFi 环境下可以正常生图和查看历史记录</li>
+            <li>🔍 <strong>问题定位</strong>：5G 网络无法访问腾讯云服务器的 3001 端口（后端 API 端口）</li>
+          </ul>
+
+          <h2>根本原因</h2>
+          <ul>
+            <li><strong>架构分离</strong>：前端运行在 8000 端口，后端 API 运行在 3001 端口</li>
+            <li><strong>防火墙限制</strong>：腾讯云防火墙只开放了 8000 端口，3001 端口未开放</li>
+            <li><strong>网络环境差异</strong>：
+              <ul>
+                <li>WiFi 环境：手机和服务器在同一内网，可直接访问 3001 端口</li>
+                <li>5G 环境：手机在公网，无法访问未开放的 3001 端口</li>
+              </ul>
+            </li>
+          </ul>
+
+          <h2>解决方案尝试（失败）</h2>
+
+          <h3>尝试 1：端口集成（8000 端口同时提供前端和 API）</h3>
+          <ul>
+            <li><strong>修改内容</strong>：
+              <ul>
+                <li>将 test-server.js 端口从 3001 改为 8000</li>
+                <li>添加静态文件服务（HTML/CSS/JS/images）</li>
+                <li>修改前端 getBackendUrl() 使用当前页面端口</li>
+              </ul>
+            </li>
+            <li><strong>导致的 Bug</strong>：
+              <ul>
+                <li>❌ 本地页面：历史记录列表可以打开但无法进入详情页</li>
+                <li>❌ 服务端页面：历史记录图片加载失败，无法进入详情页</li>
+                <li>❌ 5G 环境：仍然无法生图</li>
+                <li>❌ WiFi 环境：服务端也无法访问了</li>
+              </ul>
+            </li>
+            <li><strong>失败原因</strong>：架构改动过大，破坏了原有的路由逻辑和文件路径处理</li>
+          </ul>
+
+          <h2>解决方案尝试（成功）</h2>
+
+          <h3>尝试 2：回撤到原架构，保持端口分离</h3>
+          <ul>
+            <li><strong>回撤内容</strong>：
+              <ul>
+                <li>恢复 test-server.js 端口为 3001</li>
+                <li>恢复前端 getBackendUrl() 使用固定 3001 端口</li>
+                <li>删除添加的静态文件服务代码</li>
+              </ul>
+            </li>
+            <li><strong>结果</strong>：
+              <ul>
+                <li>✅ 本地环境：所有功能恢复正常</li>
+                <li>✅ WiFi 环境：服务端所有功能恢复正常</li>
+                <li>⚠️ 5G 环境：仍然无法生图（需要开放 3001 端口）</li>
+              </ul>
+            </li>
+          </ul>
+
+          <h2>经验教训</h2>
+          <ul>
+            <li><strong>架构改动需谨慎</strong>：端口集成方案看似简单，但涉及路由、路径、CORS 等多方面改动</li>
+            <li><strong>测试覆盖不足</strong>：应该在改动前后全面测试所有功能（生图、历史记录、详情页等）</li>
+            <li><strong>回撤机制重要</strong>：发现问题后立即回撤，避免问题扩大</li>
+            <li><strong>最小化改动原则</strong>：应该优先选择最小化改动方案（开放防火墙端口），而非重构架构</li>
+          </ul>
+
+          <h2>推荐解决方案</h2>
+          <ul>
+            <li><strong>方案 A（推荐）</strong>：在腾讯云防火墙开放 3001 端口
+              <ul>
+                <li>优点：最小化改动，不影响现有架构</li>
+                <li>缺点：需要额外开放一个端口</li>
+              </ul>
+            </li>
+            <li><strong>方案 B</strong>：使用反向代理（Nginx）将 8000 端口的/api/* 路径转发到 3001 端口
+              <ul>
+                <li>优点：只需开放 8000 端口，架构清晰</li>
+                <li>缺点：需要配置 Nginx，增加复杂度</li>
+              </ul>
+            </li>
+          </ul>
+
+          <div class="note">
+            <strong>技术总结：</strong>本次问题暴露了架构设计时的考虑不周。初期开发阶段采用前后端分离架构（8000/3001
+            双端口）便于本地开发，但部署到云端时未考虑公网访问场景。端口集成方案虽然理论上可行，但实施过程中破坏了多个功能点。最终选择回撤到稳定版本，采用最小化改动方案（开放防火墙端口）解决问题。
+          </div>
+        </div>
+      </article>
+
+      <article>
+        <div class="bar">
+          <span>2026-03-09 03:00 模型切换功能与提示词优化</span>
+          <span>v1.5.0</span>
+        </div>
+        <div class="content">
+          <h2>新增</h2>
+          <ul>
+            <li>✨ 模型切换功能：支持在 Doubao-Seedream-4.5 和 5.0 lite 之间切换</li>
+            <li>✨ 新增 4 个发型模板：添加到选择列表，保持一行 4 个布局</li>
+            <li>✨ 为新发型模板生成缩略图</li>
+            <li>✨ 腾讯云轻量应用服务器部署：已成功部署到腾讯云轻量应用服务器</li>
+          </ul>
+          <h2>修复</h2>
+          <ul>
+            <li>🐛 统一提示词：三处提示词统一为"将图 1 的发型换为图 2 的发型，保持其他元素不变"</li>
+          </ul>
+          <h2>改善</h2>
+          <ul>
+            <li>🎨 隐藏模型切换按钮：因 4.5 模型效果不理想，暂时隐藏切换按钮</li>
+            <li>🎨 简化拍照流程：恢复为单一"上传照片"按钮，弹出系统选择器</li>
+            <li>🎨 腾讯云轻量应用服务器部署步骤：
+              <ul>
+                <li>1. 购买并创建轻量应用服务器实例（Ubuntu 22.04，2核4GB，60GB SSD）</li>
+                <li>2. 在腾讯云控制台重置服务器登录密码</li>
+                <li>3. SSH 远程登录服务器：`ssh root@服务器公网IP`</li>
+                <li>4. 安装 Node.js：`curl -fsSL https://deb.nodesource.com/setup_20.x | sudo -E bash -` 然后 `apt-get
+                  install -y nodejs`</li>
+                <li>5. 上传项目代码：使用 `scp -r HairSwap/ root@服务器公网IP:/root/HairSwap/`</li>
+                <li>6. 安装项目依赖：`cd /root/HairSwap/h5 && npm install`</li>
+                <li>7. 配置环境变量：创建 `.env` 文件，设置 `VOLCENGINE_API_KEY`</li>
+                <li>8. 配置防火墙：开放 3001 和 8000 端口</li>
+                <li>9. 启动服务：`node test-server.js`（后端）和 `python3 -m http.server 8000`（前端）</li>
+                <li>10. 公网访问验证：通过 `http://服务器公网IP:8000` 访问</li>
+              </ul>
+            </li>
+          </ul>
+          <div class="note">
+            <strong>技术亮点：</strong>支持多模型切换，通过按钮即可在不同推理接入点之间切换，无需修改代码或配置。同一 API Key
+            可访问多个推理接入点。腾讯云轻量应用服务器部署完成，公网可访问，配置简单适合快速部署和测试。
+          </div>
+        </div>
+      </article>
+
+      <article>
+        <div class="bar">
+          <span>2026-03-08 20:00 缩略图优化与多平台部署准备</span>
           <span>v1.4.0</span>
         </div>
         <div class="content">
@@ -228,14 +531,15 @@
             <li>🎨 所有部署代码包独立，互不影响本地开发</li>
           </ul>
           <div class="note">
-            <strong>技术亮点：</strong>缩略图采用 JPEG 格式显著减小体积（从 362KB 减少到 23KB）。localStorage 双重备份策略确保 Vercel 等静态环境也能正常使用历史记录。多平台部署包独立管理，本地开发环境不受影响。
+            <strong>技术亮点：</strong>缩略图采用 JPEG 格式显著减小体积（从 362KB 减少到 23KB）。localStorage 双重备份策略确保 Vercel
+            等静态环境也能正常使用历史记录。多平台部署包独立管理，本地开发环境不受影响。
           </div>
         </div>
       </article>
 
       <article>
         <div class="bar">
-          <span>2026-03-08 云部署准备</span>
+          <span>2026-03-08 15:00 云部署准备</span>
           <span>v1.3.0</span>
         </div>
         <div class="content">
@@ -256,14 +560,15 @@
             <li>🎨 云函数已部署并运行成功（状态：Ready）</li>
           </ul>
           <div class="note">
-            <strong>技术亮点：</strong>火山引擎 Web 应用函数使用 HTTP 服务器持续监听端口模式。Serverless 网关实例免除托管费用，仅收取 CLB 和流量费用。部署历史记录同步到云端，用户可查看所有历史生成记录。
+            <strong>技术亮点：</strong>火山引擎 Web 应用函数使用 HTTP 服务器持续监听端口模式。Serverless 网关实例免除托管费用，仅收取 CLB
+            和流量费用。部署历史记录同步到云端，用户可查看所有历史生成记录。
           </div>
         </div>
       </article>
 
       <article>
         <div class="bar">
-          <span>2026-03-08 移动端体验优化</span>
+          <span>2026-03-08 12:00 移动端体验优化</span>
           <span>v1.2.0</span>
         </div>
         <div class="content">
@@ -295,7 +600,7 @@
 
       <article>
         <div class="bar">
-          <span>2026-03-07 历史记录存储优化与图标更新</span>
+          <span>2026-03-07 18:00 历史记录存储优化与图标更新</span>
           <span>v1.1.0</span>
         </div>
         <div class="content">
@@ -326,7 +631,7 @@
 
       <article>
         <div class="bar">
-          <span>2026-03-07 生成记录功能与保存优化</span>
+          <span>2026-03-07 15:00 生成记录功能与保存优化</span>
           <span>v1.0.0</span>
         </div>
         <div class="content">
@@ -357,8 +662,8 @@
 
       <article>
         <div class="bar">
-          <span>2026-03-07 17:00:00</span>
-          <span>H5 Demo 前端开发完成</span>
+          <span>2026-03-07 12:00 H5 Demo 前端开发完成</span>
+          <span></span>
         </div>
         <div class="content">
           <h2>新增</h2>
