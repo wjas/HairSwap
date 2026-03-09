@@ -321,6 +321,15 @@ const server = http.createServer(async (req, res) => {
       const dirs = fs.readdirSync(historyDir);
 
       dirs.forEach(dir => {
+        // 跳过以点开头的系统文件和非目录文件
+        if (dir.startsWith('.')) {
+          return;
+        }
+        const dirPath = path.join(historyDir, dir);
+        if (!fs.statSync(dirPath).isDirectory()) {
+          return;
+        }
+
         const metadataPath = path.join(historyDir, dir, 'metadata.json');
         if (fs.existsSync(metadataPath)) {
           const metadata = JSON.parse(fs.readFileSync(metadataPath, 'utf-8'));
