@@ -144,14 +144,32 @@ const server = http.createServer(async (req, res) => {
           }
         );
 
-        const imageUrl = response.data.data[0].url;
+        const originalImageUrl = response.data.data[0].url;
 
-        console.log('✅ 生成成功:', imageUrl);
+        console.log('✅ 生成成功:', originalImageUrl);
+
+        // 立即下载图片并转换为 base64，保持原始格式（JPEG）
+        let imageBase64 = null;
+        try {
+          console.log('📥 正在下载原始图片...');
+          const imageResponse = await axios.get(originalImageUrl, {
+            responseType: 'arraybuffer',
+            timeout: 30000
+          });
+          const imageBuffer = Buffer.from(imageResponse.data);
+
+          // 保持原始格式，直接转换为 base64（不重新编码）
+          imageBase64 = 'data:image/jpeg;base64,' + imageBuffer.toString('base64');
+          console.log('✅ 原始图片已准备，大小:', imageBuffer.length, 'bytes');
+        } catch (downloadError) {
+          console.error('⚠️ 下载原始图片失败:', downloadError.message);
+        }
 
         res.writeHead(200, { 'Content-Type': 'application/json' });
         res.end(JSON.stringify({
           success: true,
-          imageUrl: imageUrl
+          imageUrl: imageBase64 || originalImageUrl,
+          originalImageUrl: originalImageUrl
         }));
 
       } catch (error) {
@@ -201,12 +219,24 @@ const server = http.createServer(async (req, res) => {
           JSON.stringify(metadata, null, 2)
         );
 
-        // 保存原图
+        // 保存原图（保持原始格式）
         if (originalImage) {
           const originalBase64 = originalImage.split(',')[1];
           if (originalBase64) {
             const originalBuffer = Buffer.from(originalBase64, 'base64');
-            fs.writeFileSync(path.join(recordDir, 'original.png'), originalBuffer);
+
+            // 检测图片格式并确定正确的扩展名
+            let originalExt = 'png';
+            try {
+              const metadata = await sharp(originalBuffer).metadata();
+              originalExt = metadata.format === 'jpeg' ? 'jpg' : metadata.format;
+            } catch (metadataError) {
+              console.error('   ⚠️ 无法检测原图格式，默认使用 png');
+            }
+
+            const originalFilename = `original.${originalExt}`;
+            fs.writeFileSync(path.join(recordDir, originalFilename), originalBuffer);
+            console.log('   ✅', originalFilename, '已保存（原始格式）');
           }
         }
 
@@ -238,21 +268,24 @@ const server = http.createServer(async (req, res) => {
           }
 
           if (resultBuffer) {
-            // 使用 sharp 重新编码 PNG，确保符合 macOS 标准
+            // 直接保存原始图片（保持原始格式，不重新编码）
+            // 根据原始图片格式自动确定扩展名
+            let resultExt = 'jpg';
             try {
-              await sharp(resultBuffer)
-                .png({ quality: 90, compressionLevel: 6 })
-                .toFile(path.join(recordDir, 'result.png'));
-              console.log('   ✅ result.png 已保存并重新编码');
-            } catch (encodeError) {
-              console.error('   ❌ 重新编码失败:', encodeError.message);
-              // 如果重新编码失败，直接保存原始数据
-              fs.writeFileSync(path.join(recordDir, 'result.png'), resultBuffer);
+              // 检测图片格式
+              const metadata = await sharp(resultBuffer).metadata();
+              resultExt = metadata.format === 'jpeg' ? 'jpg' : metadata.format;
+            } catch (metadataError) {
+              console.error('   ⚠️ 无法检测图片格式，默认使用 jpg');
             }
+
+            const resultFilename = `result.${resultExt}`;
+            fs.writeFileSync(path.join(recordDir, resultFilename), resultBuffer);
+            console.log('   ✅', resultFilename, '已保存（原始格式）');
 
             // 自动生成缩略图
             try {
-              await sharp(path.join(recordDir, 'result.png'))
+              await sharp(path.join(recordDir, resultFilename))
                 .resize(THUMBNAIL_WIDTH, null, { withoutEnlargement: true })
                 .jpeg({ quality: THUMBNAIL_QUALITY })
                 .toFile(path.join(recordDir, 'result_thumb.jpg'));
@@ -294,20 +327,29 @@ const server = http.createServer(async (req, res) => {
 
           // 检查是否有缩略图 - 优先使用缩略图
           const resultThumbPath = path.join(historyDir, dir, 'result_thumb.jpg');
-          const resultPath = path.join(historyDir, dir, 'result.png');
-          let imageUrl = null;
+          let imageData = null;
           if (fs.existsSync(resultThumbPath)) {
-            // 使用图片 URL 而不是 base64，大幅提高加载速度
-            imageUrl = `/history/${metadata.id}/result_thumb.jpg`;
-          } else if (fs.existsSync(resultPath)) {
-            imageUrl = `/history/${metadata.id}/result.png`;
+            const imageBuffer = fs.readFileSync(resultThumbPath);
+            imageData = 'data:image/jpeg;base64,' + imageBuffer.toString('base64');
+          } else {
+            // 查找 result 图片文件（支持 jpg、png 等格式）
+            const subdir = path.join(historyDir, dir);
+            const files = fs.readdirSync(subdir);
+            const resultFile = files.find(f => f.startsWith('result.') && !f.endsWith('_thumb.jpg'));
+            if (resultFile) {
+              const resultPath = path.join(subdir, resultFile);
+              const imageBuffer = fs.readFileSync(resultPath);
+              const ext = path.extname(resultFile).toLowerCase();
+              const mimeType = ext === '.jpg' || ext === '.jpeg' ? 'jpeg' : 'png';
+              imageData = `data:image/${mimeType};base64,` + imageBuffer.toString('base64');
+            }
           }
 
           records.push({
             id: metadata.id,
             hairstyleName: metadata.hairstyleName,
             createdAt: metadata.createdAt,
-            imageUrl: imageUrl
+            imageUrl: imageData
           });
         }
       });
@@ -336,12 +378,13 @@ const server = http.createServer(async (req, res) => {
       res.writeHead(500, { 'Content-Type': 'application/json' });
       res.end(JSON.stringify({ success: false, message: error.message }));
     }
-  } else if (req.method === 'GET' && req.url.startsWith('/history/') && req.url.endsWith('/result.png')) {
-    // 提供历史记录图片访问（用于列表显示）
+  } else if (req.method === 'GET' && req.url.startsWith('/history/') && (req.url.includes('/result.') || req.url.endsWith('/result_thumb.jpg') || req.url.includes('/original.'))) {
+    // 提供历史记录图片访问（支持 result.png, result_thumb.jpg, original.png）
     try {
       const parts = req.url.split('/');
       const id = parts[2];
-      const imagePath = path.join(__dirname, 'history', id, 'result.png');
+      const fileName = parts[3];
+      const imagePath = path.join(__dirname, 'history', id, fileName);
 
       console.log('🖼️  收到图片请求:', req.url);
       console.log('   文件路径:', imagePath);
@@ -356,9 +399,16 @@ const server = http.createServer(async (req, res) => {
 
       const imageBuffer = fs.readFileSync(imagePath);
       console.log('✅ 图片发送成功:', imageBuffer.length, 'bytes');
+
+      // 根据文件扩展名设置正确的 Content-Type
+      let contentType = 'image/png';
+      if (fileName.endsWith('.jpg') || fileName.endsWith('.jpeg')) {
+        contentType = 'image/jpeg';
+      }
+
       // 添加 CORS 头
       res.setHeader('Access-Control-Allow-Origin', '*');
-      res.writeHead(200, { 'Content-Type': 'image/png' });
+      res.writeHead(200, { 'Content-Type': contentType });
       res.end(imageBuffer);
     } catch (error) {
       console.error('❌ 提供图片访问失败:', error);
@@ -382,17 +432,28 @@ const server = http.createServer(async (req, res) => {
       const metadataPath = path.join(recordDir, 'metadata.json');
       const metadata = JSON.parse(fs.readFileSync(metadataPath, 'utf-8'));
 
-      // 使用图片 URL 提高加载速度
-      let originalImageUrl = null;
-      const originalPath = path.join(recordDir, 'original.png');
-      if (fs.existsSync(originalPath)) {
-        originalImageUrl = `/history/${id}/original.png`;
+      // 使用 base64 编码，与云端服务器保持一致
+      let originalImage = null;
+      // 查找 original 图片文件（支持 jpg、png 等格式）
+      const files = fs.readdirSync(recordDir);
+      const originalFile = files.find(f => f.startsWith('original.'));
+      if (originalFile) {
+        const originalPath = path.join(recordDir, originalFile);
+        const originalBuffer = fs.readFileSync(originalPath);
+        const ext = path.extname(originalFile).toLowerCase();
+        const mimeType = ext === '.jpg' || ext === '.jpeg' ? 'jpeg' : 'png';
+        originalImage = `data:image/${mimeType};base64,` + originalBuffer.toString('base64');
       }
 
-      let resultImageUrl = null;
-      const resultPath = path.join(recordDir, 'result.png');
-      if (fs.existsSync(resultPath)) {
-        resultImageUrl = `/history/${id}/result.png`;
+      let imageUrl = null;
+      // 查找 result 图片文件（支持 jpg、png 等格式）
+      const resultFile = files.find(f => f.startsWith('result.') && !f.endsWith('_thumb.jpg'));
+      if (resultFile) {
+        const resultPath = path.join(recordDir, resultFile);
+        const resultBuffer = fs.readFileSync(resultPath);
+        const ext = path.extname(resultFile).toLowerCase();
+        const mimeType = ext === '.jpg' || ext === '.jpeg' ? 'jpeg' : 'png';
+        imageUrl = `data:image/${mimeType};base64,` + resultBuffer.toString('base64');
       }
 
       console.log('📋 获取历史记录详情:', metadata.hairstyleName);
@@ -402,8 +463,8 @@ const server = http.createServer(async (req, res) => {
         id: metadata.id,
         hairstyleName: metadata.hairstyleName,
         createdAt: metadata.createdAt,
-        originalImageUrl: originalImageUrl,
-        imageUrl: resultImageUrl
+        originalImage: originalImage,
+        imageUrl: imageUrl
       }));
     } catch (error) {
       console.error('❌ 获取历史记录详情失败:', error);

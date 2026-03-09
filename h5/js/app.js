@@ -56,6 +56,7 @@ class HairSwapApp {
       selectedHairstyle: null,
       hairstylePath: null,
       resultImage: null,
+      originalImageUrl: null, // 保存火山引擎原始图片 URL
       history: [], // 生成历史记录
       currentModel: 'ep-20260309025356-rp498' // 默认模型：4.5
     };
@@ -229,6 +230,8 @@ class HairSwapApp {
     reader.onload = (e) => {
       this.state.photo = file;
       this.state.photoBase64 = e.target.result;
+      // 清空 originalImageUrl，确保在新生成结果页时使用正确的原图
+      this.state.originalImageUrl = null;
       this.updatePhotoPreview();
       this.checkGenerateButton();
     };
@@ -261,6 +264,7 @@ class HairSwapApp {
   removePhoto() {
     this.state.photo = null;
     this.state.photoBase64 = null;
+    this.state.originalImageUrl = null;
     this.updatePhotoPreview();
     this.checkGenerateButton();
 
@@ -399,6 +403,7 @@ class HairSwapApp {
 
       if (data.success && data.imageUrl) {
         this.state.resultImage = data.imageUrl;
+        this.state.originalImageUrl = data.originalImageUrl; // 保存原始图片 URL
 
         // 保存到文件系统（通过服务器 API）
         const hairstyleName = `发型${this.state.selectedHairstyle.replace('style', '')}`;
@@ -485,17 +490,13 @@ class HairSwapApp {
     const compareBtn = document.getElementById('compare-btn');
     const resultImage = document.getElementById('result-image');
 
-    // 支持 URL 或 base64
-    const originalImage = this.state.originalImageUrl || this.state.photoBase64;
+    // 判断是在新生成结果页还是历史记录详情页
+    // 新生成结果页：使用 this.state.photoBase64
+    // 历史记录详情页：使用 this.state.originalImageUrl
+    const originalImage = this.state.photoBase64 || this.state.originalImageUrl;
     if (!compareBtn || !originalImage) {
       if (compareBtn) compareBtn.style.display = 'none';
       return;
-    }
-
-    // 预加载原图，提升用户体验
-    if (this.state.originalImageUrl) {
-      const preloadImg = new Image();
-      preloadImg.src = this.state.originalImageUrl;
     }
 
     compareBtn.style.display = 'flex';
@@ -546,15 +547,31 @@ class HairSwapApp {
   }
 
   saveResult() {
-    const imageUrl = this.state.resultImage;
+    // 优先使用原始图片 URL（火山引擎未经过 sharp 重新编码的图片）
+    const imageUrl = this.state.originalImageUrl || this.state.resultImage;
     if (!imageUrl) {
       this.showToast('没有可保存的图片');
       return;
     }
 
-    // 由于 CORS 限制，使用新窗口打开图片，让用户长按保存
-    window.open(imageUrl, '_blank');
-    this.showToast('已在新窗口打开图片，请长按保存');
+    // 如果有原始图片 URL，直接打开新窗口让用户保存
+    if (this.state.originalImageUrl) {
+      window.open(this.state.originalImageUrl, '_blank');
+      this.showToast('已在新窗口打开原始图片，请长按保存');
+    } else if (imageUrl.startsWith('data:')) {
+      // 是 base64，直接下载
+      const link = document.createElement('a');
+      link.download = `换发型_${Date.now()}.png`;
+      link.href = imageUrl;
+      document.body.appendChild(link);
+      link.click();
+      document.body.removeChild(link);
+      this.showToast('图片已保存');
+    } else {
+      // 是 URL，使用新窗口打开
+      window.open(imageUrl, '_blank');
+      this.showToast('已在新窗口打开图片，请长按保存');
+    }
   }
 
   // 配置后端服务器地址
@@ -884,7 +901,10 @@ class HairSwapApp {
       if (response.ok) {
         const record = await response.json();
         this.state.resultImage = record.imageUrl;
-        this.state.originalImageUrl = record.originalImageUrl;
+        // 兼容云端服务器返回的 originalImage 和之前的 originalImageUrl
+        this.state.originalImageUrl = record.originalImage || record.originalImageUrl;
+        // 清空 photoBase64，确保查看原图时使用历史记录的原图而不是之前上传的
+        this.state.photoBase64 = null;
 
         // 显示结果页面
         const resultImage = document.getElementById('result-image');
