@@ -17,6 +17,12 @@ const HOST = '0.0.0.0'; // 允许局域网访问
 const THUMBNAIL_WIDTH = 400;
 const THUMBNAIL_QUALITY = 80;
 
+// 服务器端缓存
+let historyListCache = null;
+let historyListCacheTime = 0;
+let historyDetailCache = {}; // { id: { data: ..., time: ... } }
+const CACHE_DURATION = 10 * 60 * 1000; // 10分钟缓存
+
 // 从 .env 文件读取配置
 function loadEnv() {
   const envPath = path.join(__dirname, '..', '.env');
@@ -298,6 +304,11 @@ const server = http.createServer(async (req, res) => {
 
         console.log('✅ 历史记录已保存:', recordDir);
 
+        // 清除历史记录列表缓存
+        historyListCache = null;
+        historyListCacheTime = 0;
+        console.log('🧹 已清除历史记录列表缓存');
+
         res.writeHead(200, { 'Content-Type': 'application/json' });
         res.end(JSON.stringify({ success: true }));
       } catch (error) {
@@ -309,6 +320,16 @@ const server = http.createServer(async (req, res) => {
   } else if (req.method === 'GET' && req.url === '/history-list') {
     // 获取历史记录列表
     try {
+      const now = Date.now();
+
+      // 检查缓存是否有效
+      if (historyListCache && (now - historyListCacheTime) < CACHE_DURATION) {
+        console.log('📋 使用缓存的历史记录列表');
+        res.writeHead(200, { 'Content-Type': 'application/json' });
+        res.end(JSON.stringify({ records: historyListCache }));
+        return;
+      }
+
       const historyDir = path.join(__dirname, 'history');
 
       if (!fs.existsSync(historyDir)) {
@@ -334,23 +355,20 @@ const server = http.createServer(async (req, res) => {
         if (fs.existsSync(metadataPath)) {
           const metadata = JSON.parse(fs.readFileSync(metadataPath, 'utf-8'));
 
-          // 检查是否有缩略图 - 优先使用缩略图
+          // 构建图片URL，而不是返回base64
+          let imageUrl = null;
+          // 检查是否有缩略图
           const resultThumbPath = path.join(historyDir, dir, 'result_thumb.jpg');
-          let imageData = null;
           if (fs.existsSync(resultThumbPath)) {
-            const imageBuffer = fs.readFileSync(resultThumbPath);
-            imageData = 'data:image/jpeg;base64,' + imageBuffer.toString('base64');
+            // 返回缩略图URL
+            imageUrl = `/history/${dir}/result_thumb.jpg`;
           } else {
             // 查找 result 图片文件（支持 jpg、png 等格式）
             const subdir = path.join(historyDir, dir);
             const files = fs.readdirSync(subdir);
             const resultFile = files.find(f => f.startsWith('result.') && !f.endsWith('_thumb.jpg'));
             if (resultFile) {
-              const resultPath = path.join(subdir, resultFile);
-              const imageBuffer = fs.readFileSync(resultPath);
-              const ext = path.extname(resultFile).toLowerCase();
-              const mimeType = ext === '.jpg' || ext === '.jpeg' ? 'jpeg' : 'png';
-              imageData = `data:image/${mimeType};base64,` + imageBuffer.toString('base64');
+              imageUrl = `/history/${dir}/${resultFile}`;
             }
           }
 
@@ -358,7 +376,7 @@ const server = http.createServer(async (req, res) => {
             id: metadata.id,
             hairstyleName: metadata.hairstyleName,
             createdAt: metadata.createdAt,
-            imageUrl: imageData
+            imageUrl: imageUrl
           });
         }
       });
@@ -378,10 +396,17 @@ const server = http.createServer(async (req, res) => {
         return (b.id || 0) - (a.id || 0);
       });
 
-      console.log('📋 获取历史记录列表:', records.length, '条');
+      // 限制返回最多50条记录（避免数据量太大）
+      const limitedRecords = records.slice(0, 50);
+
+      console.log('📋 获取历史记录列表:', limitedRecords.length, '条（最多50条）');
+
+      // 更新缓存
+      historyListCache = limitedRecords;
+      historyListCacheTime = now;
 
       res.writeHead(200, { 'Content-Type': 'application/json' });
-      res.end(JSON.stringify({ records: records }));
+      res.end(JSON.stringify({ records: limitedRecords }));
     } catch (error) {
       console.error('❌ 获取历史记录列表失败:', error);
       res.writeHead(500, { 'Content-Type': 'application/json' });
@@ -406,9 +431,8 @@ const server = http.createServer(async (req, res) => {
         return;
       }
 
-      const imageBuffer = fs.readFileSync(imagePath);
       const stats = fs.statSync(imagePath);
-      console.log('✅ 图片发送成功:', imageBuffer.length, 'bytes');
+      console.log('✅ 图片发送（流式）:', stats.size, 'bytes');
 
       // 根据文件扩展名设置正确的 Content-Type
       let contentType = 'image/png';
@@ -420,8 +444,12 @@ const server = http.createServer(async (req, res) => {
       res.setHeader('Access-Control-Allow-Origin', '*');
       res.setHeader('Cache-Control', 'public, max-age=86400'); // 缓存 24 小时
       res.setHeader('Last-Modified', stats.mtime.toUTCString());
+      res.setHeader('Content-Length', stats.size);
       res.writeHead(200, { 'Content-Type': contentType });
-      res.end(imageBuffer);
+
+      // 使用流式传输，避免大文件占用内存
+      const readStream = fs.createReadStream(imagePath);
+      readStream.pipe(res);
     } catch (error) {
       console.error('❌ 提供图片访问失败:', error);
       res.writeHead(500);
@@ -432,6 +460,16 @@ const server = http.createServer(async (req, res) => {
     try {
       const parts = req.url.split('/');
       const id = parts[2];
+      const now = Date.now();
+
+      // 检查缓存是否有效
+      if (historyDetailCache[id] && (now - historyDetailCache[id].time) < CACHE_DURATION) {
+        console.log('📋 使用缓存的历史记录详情:', id);
+        res.writeHead(200, { 'Content-Type': 'application/json' });
+        res.end(JSON.stringify(historyDetailCache[id].data));
+        return;
+      }
+
       const recordDir = path.join(__dirname, 'history', id);
 
       if (!fs.existsSync(recordDir)) {
@@ -444,40 +482,40 @@ const server = http.createServer(async (req, res) => {
       const metadataPath = path.join(recordDir, 'metadata.json');
       const metadata = JSON.parse(fs.readFileSync(metadataPath, 'utf-8'));
 
-      // 使用 base64 编码，与云端服务器保持一致
+      // 返回图片URL而非base64
       let originalImage = null;
       // 查找 original 图片文件（支持 jpg、png 等格式）
       const files = fs.readdirSync(recordDir);
       const originalFile = files.find(f => f.startsWith('original.'));
       if (originalFile) {
-        const originalPath = path.join(recordDir, originalFile);
-        const originalBuffer = fs.readFileSync(originalPath);
-        const ext = path.extname(originalFile).toLowerCase();
-        const mimeType = ext === '.jpg' || ext === '.jpeg' ? 'jpeg' : 'png';
-        originalImage = `data:image/${mimeType};base64,` + originalBuffer.toString('base64');
+        originalImage = `/history/${id}/${originalFile}`;
       }
 
       let imageUrl = null;
       // 查找 result 图片文件（支持 jpg、png 等格式）
       const resultFile = files.find(f => f.startsWith('result.') && !f.endsWith('_thumb.jpg'));
       if (resultFile) {
-        const resultPath = path.join(recordDir, resultFile);
-        const resultBuffer = fs.readFileSync(resultPath);
-        const ext = path.extname(resultFile).toLowerCase();
-        const mimeType = ext === '.jpg' || ext === '.jpeg' ? 'jpeg' : 'png';
-        imageUrl = `data:image/${mimeType};base64,` + resultBuffer.toString('base64');
+        imageUrl = `/history/${id}/${resultFile}`;
       }
 
       console.log('📋 获取历史记录详情:', metadata.hairstyleName);
 
-      res.writeHead(200, { 'Content-Type': 'application/json' });
-      res.end(JSON.stringify({
+      const responseData = {
         id: metadata.id,
         hairstyleName: metadata.hairstyleName,
         createdAt: metadata.createdAt,
         originalImage: originalImage,
         imageUrl: imageUrl
-      }));
+      };
+
+      // 更新缓存
+      historyDetailCache[id] = {
+        data: responseData,
+        time: now
+      };
+
+      res.writeHead(200, { 'Content-Type': 'application/json' });
+      res.end(JSON.stringify(responseData));
     } catch (error) {
       console.error('❌ 获取历史记录详情失败:', error);
       res.writeHead(500, { 'Content-Type': 'application/json' });
