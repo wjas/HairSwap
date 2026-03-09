@@ -66,11 +66,12 @@ const server = http.createServer(async (req, res) => {
 
     req.on('end', async () => {
       try {
-        const { photoBase64, hairstylePath, prompt } = JSON.parse(body);
+        const { photoBase64, hairstylePath, prompt, model } = JSON.parse(body);
 
         console.log('📥 收到生成请求');
         console.log('   发型模板:', hairstylePath);
         console.log('   照片 Base64 长度:', photoBase64 ? photoBase64.length : 0);
+        console.log('   使用模型:', model || CONFIG.VOLCENGINE_MODEL);
 
         // 检查必需参数
         if (!photoBase64) {
@@ -125,8 +126,8 @@ const server = http.createServer(async (req, res) => {
         const response = await axios.post(
           `${CONFIG.VOLCENGINE_BASE_URL}/images/generations`,
           {
-            model: CONFIG.VOLCENGINE_MODEL,
-            prompt: prompt || '将图 2 的发型换到图 1 上，保持图 1 的脸部、五官、背景等其他元素不变',
+            model: model || CONFIG.VOLCENGINE_MODEL,
+            prompt: prompt || '将图 1 的发型换为图 2 的发型，保持其他元素不变',
             image: [photoDataUri, hairstyleDataUri], // 人物在前，发型在后
             size: '2K',
             sequential_image_generation: 'disabled',
@@ -237,8 +238,17 @@ const server = http.createServer(async (req, res) => {
           }
 
           if (resultBuffer) {
-            fs.writeFileSync(path.join(recordDir, 'result.png'), resultBuffer);
-            console.log('   ✅ result.png 已保存');
+            // 使用 sharp 重新编码 PNG，确保符合 macOS 标准
+            try {
+              await sharp(resultBuffer)
+                .png({ quality: 90, compressionLevel: 6 })
+                .toFile(path.join(recordDir, 'result.png'));
+              console.log('   ✅ result.png 已保存并重新编码');
+            } catch (encodeError) {
+              console.error('   ❌ 重新编码失败:', encodeError.message);
+              // 如果重新编码失败，直接保存原始数据
+              fs.writeFileSync(path.join(recordDir, 'result.png'), resultBuffer);
+            }
 
             // 自动生成缩略图
             try {
@@ -285,26 +295,37 @@ const server = http.createServer(async (req, res) => {
           // 检查是否有缩略图 - 优先使用缩略图
           const resultThumbPath = path.join(historyDir, dir, 'result_thumb.jpg');
           const resultPath = path.join(historyDir, dir, 'result.png');
-          let imageData = null;
+          let imageUrl = null;
           if (fs.existsSync(resultThumbPath)) {
-            const imageBuffer = fs.readFileSync(resultThumbPath);
-            imageData = 'data:image/jpeg;base64,' + imageBuffer.toString('base64');
+            // 使用图片 URL 而不是 base64，大幅提高加载速度
+            imageUrl = `/history/${metadata.id}/result_thumb.jpg`;
           } else if (fs.existsSync(resultPath)) {
-            const imageBuffer = fs.readFileSync(resultPath);
-            imageData = 'data:image/png;base64,' + imageBuffer.toString('base64');
+            imageUrl = `/history/${metadata.id}/result.png`;
           }
 
           records.push({
             id: metadata.id,
             hairstyleName: metadata.hairstyleName,
             createdAt: metadata.createdAt,
-            imageUrl: imageData
+            imageUrl: imageUrl
           });
         }
       });
 
-      // 按时间倒序排列
-      records.sort((a, b) => new Date(b.createdAt) - new Date(a.createdAt));
+      // 按时间倒序排列（最新的在前）
+      records.sort((a, b) => {
+        try {
+          const dateA = a.createdAt ? new Date(a.createdAt).getTime() : 0;
+          const dateB = b.createdAt ? new Date(b.createdAt).getTime() : 0;
+          if (!isNaN(dateB) && !isNaN(dateA)) {
+            return dateB - dateA;
+          }
+        } catch (e) {
+          console.warn('日期排序失败，使用ID排序:', e);
+        }
+        // 如果日期排序失败，使用 ID 排序（ID 是时间戳）
+        return (b.id || 0) - (a.id || 0);
+      });
 
       console.log('📋 获取历史记录列表:', records.length, '条');
 
@@ -361,20 +382,17 @@ const server = http.createServer(async (req, res) => {
       const metadataPath = path.join(recordDir, 'metadata.json');
       const metadata = JSON.parse(fs.readFileSync(metadataPath, 'utf-8'));
 
-      // 读取原图
-      let originalImage = null;
+      // 使用图片 URL 提高加载速度
+      let originalImageUrl = null;
       const originalPath = path.join(recordDir, 'original.png');
       if (fs.existsSync(originalPath)) {
-        const originalBuffer = fs.readFileSync(originalPath);
-        originalImage = 'data:image/png;base64,' + originalBuffer.toString('base64');
+        originalImageUrl = `/history/${id}/original.png`;
       }
 
-      // 读取生成图
-      let imageUrl = null;
+      let resultImageUrl = null;
       const resultPath = path.join(recordDir, 'result.png');
       if (fs.existsSync(resultPath)) {
-        const resultBuffer = fs.readFileSync(resultPath);
-        imageUrl = 'data:image/png;base64,' + resultBuffer.toString('base64');
+        resultImageUrl = `/history/${id}/result.png`;
       }
 
       console.log('📋 获取历史记录详情:', metadata.hairstyleName);
@@ -384,8 +402,8 @@ const server = http.createServer(async (req, res) => {
         id: metadata.id,
         hairstyleName: metadata.hairstyleName,
         createdAt: metadata.createdAt,
-        originalImage: originalImage,
-        imageUrl: imageUrl
+        originalImageUrl: originalImageUrl,
+        imageUrl: resultImageUrl
       }));
     } catch (error) {
       console.error('❌ 获取历史记录详情失败:', error);

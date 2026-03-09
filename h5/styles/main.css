@@ -224,9 +224,9 @@ html, body {
   display: flex;
 }
 
-/* 手机端上传按钮 */
+/* 手机端上传按钮 - 桌面端默认隐藏 */
 .mobile-upload-buttons {
-  display: flex;
+  display: none;
   gap: 12px;
   margin-top: 16px;
 }
@@ -260,7 +260,11 @@ html, body {
 
 @media (max-width: 768px) {
   .mobile-upload-buttons {
-    display: flex !important;
+    display: flex;
+  }
+  
+  .mobile-upload-buttons.hidden {
+    display: none !important;
   }
   
   .preview-area {
