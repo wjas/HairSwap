@@ -3,49 +3,49 @@
 // 使用说明：详见 /DEBUG_TOOL.md
 // ============================================================================
 // 版本号：每次更新代码前请 +1，用于验证缓存刷新
-const APP_VERSION = 1;
+const APP_VERSION = 16;
 
-// 调试面板功能
-function initDebugPanel() {
-  const debugBtn = document.getElementById('debug-btn');
-  const debugPanel = document.getElementById('debug-panel');
-
-  if (!debugBtn || !debugPanel) return;
-
-  let isVisible = false;
-  const logs = [];
-
-  // 重写 console.log
-  const originalLog = console.log;
-  console.log = function (...args) {
-    logs.push(args.join(' '));
-    if (logs.length > 50) logs.shift(); // 只保留最近 50 条
-    if (isVisible) {
-      debugPanel.innerHTML = logs.join('<br>');
-      debugPanel.scrollTop = debugPanel.scrollHeight;
-    }
-    originalLog.apply(console, args);
-  };
-
-  // 点击按钮切换显示
-  debugBtn.onclick = () => {
-    isVisible = !isVisible;
-    debugPanel.style.display = isVisible ? 'block' : 'none';
-    if (isVisible) {
-      debugPanel.innerHTML = logs.join('<br>');
-      debugPanel.scrollTop = debugPanel.scrollHeight;
-    }
-  };
-
-  console.log('🔧 调试面板已初始化');
-}
-
-// 页面加载时初始化调试面板
-if (document.readyState === 'loading') {
-  document.addEventListener('DOMContentLoaded', initDebugPanel);
-} else {
-  initDebugPanel();
-}
+// 调试面板功能（已注释）
+// function initDebugPanel() {
+//   const debugBtn = document.getElementById('debug-btn');
+//   const debugPanel = document.getElementById('debug-panel');
+// 
+//   if (!debugBtn || !debugPanel) return;
+// 
+//   let isVisible = false;
+//   const logs = [];
+// 
+//   // 重写 console.log
+//   const originalLog = console.log;
+//   console.log = function (...args) {
+//     logs.push(args.join(' '));
+//     if (logs.length > 50) logs.shift(); // 只保留最近 50 条
+//     if (isVisible) {
+//       debugPanel.innerHTML = logs.join('<br>');
+//       debugPanel.scrollTop = debugPanel.scrollHeight;
+//     }
+//     originalLog.apply(console, args);
+//   };
+// 
+//   // 点击按钮切换显示
+//   debugBtn.onclick = () => {
+//     isVisible = !isVisible;
+//     debugPanel.style.display = isVisible ? 'block' : 'none';
+//     if (isVisible) {
+//       debugPanel.innerHTML = logs.join('<br>');
+//       debugPanel.scrollTop = debugPanel.scrollHeight;
+//     }
+//   };
+// 
+//   console.log('🔧 调试面板已初始化');
+// }
+// 
+// // 页面加载时初始化调试面板
+// if (document.readyState === 'loading') {
+//   document.addEventListener('DOMContentLoaded', initDebugPanel);
+// } else {
+//   initDebugPanel();
+// }
 // ============================================================================
 
 class HairSwapApp {
@@ -58,7 +58,11 @@ class HairSwapApp {
       resultImage: null,
       originalImageUrl: null, // 保存火山引擎原始图片 URL
       history: [], // 生成历史记录
-      currentModel: 'ep-20260309025356-rp498' // 默认模型：4.5
+      currentModel: 'ep-20260309025356-rp498', // 默认模型：4.5
+      historyLoaded: false, // 标记历史记录是否已加载
+      historyCacheTime: 0, // 历史记录缓存时间
+      historyDetailCache: {}, // { id: { data: ..., time: ... } } - 详情页缓存
+      historyDetailCacheTime: 5 * 60 * 1000 // 详情页缓存5分钟
     };
 
     this.config = {
@@ -81,7 +85,7 @@ class HairSwapApp {
     this.isInDetailPage = false;
 
     this.init();
-    this.loadHistory(); // 加载历史记录
+    // this.loadHistory(); // 加载历史记录 - 等用户点击"生成记录"按钮时再加载
     this.loadPhotoFromStorage(); // 加载本地存储的照片
     // this.showVersion(); // 显示版本号（调试时使用，平时注释掉）
   }
@@ -448,6 +452,8 @@ class HairSwapApp {
 
       if (response.ok) {
         console.log('✅ 历史记录已保存到服务器:', hairstyleName);
+        // 保存成功后，让缓存失效，下次加载时重新获取
+        this.state.historyLoaded = false;
       } else {
         console.error('❌ 保存失败:', response.statusText);
       }
@@ -459,6 +465,12 @@ class HairSwapApp {
   showResult() {
     const resultImage = document.getElementById('result-image');
     resultImage.src = this.state.resultImage;
+
+    // 显示对比按钮
+    const compareBtn = document.getElementById('compare-btn');
+    if (compareBtn) {
+      compareBtn.style.display = 'flex';
+    }
 
     // 重置详情页标记
     this.isInDetailPage = false;
@@ -485,34 +497,59 @@ class HairSwapApp {
     this.showPage('result-page');
   }
 
-  // 设置对比按钮
+  // 设置对比按钮（只绑定一次）
   setupCompareButton() {
     const compareBtn = document.getElementById('compare-btn');
-    const resultImage = document.getElementById('result-image');
+    if (!compareBtn) return;
 
-    // 判断是在新生成结果页还是历史记录详情页
-    // 新生成结果页：使用 this.state.photoBase64
-    // 历史记录详情页：使用 this.state.originalImageUrl
-    const originalImage = this.state.photoBase64 || this.state.originalImageUrl;
-    if (!compareBtn || !originalImage) {
-      if (compareBtn) compareBtn.style.display = 'none';
-      return;
+    // 检查是否已经绑定过事件
+    if (compareBtn._compareEventsBound) {
+      return; // 已经绑定过，不再重复绑定
     }
 
-    compareBtn.style.display = 'flex';
+    const resultImage = document.getElementById('result-image');
 
     let isShowingOriginal = false;
     let pressTimer;
 
     const showOriginal = () => {
+      const originalImage = this.state.photoBase64 || this.state.originalImageUrl;
+      console.log('👀 显示原图:', originalImage);
       if (originalImage) {
-        resultImage.src = originalImage;
+        // 显示加载状态
+        compareBtn.style.opacity = '0.5';
+
+        // 检查是否已经预加载完成
+        if (this.state.hiddenOriginalImg && this.state.hiddenOriginalImg.complete) {
+          console.log('✅ 使用预加载完成的原图');
+          resultImage.src = originalImage;
+          compareBtn.style.opacity = '1';
+        } else {
+          console.log('📥 原图未预加载完成，继续加载');
+          // 直接设置src，不覆盖onload/onerror事件
+          resultImage.src = originalImage;
+          // 用临时变量监听加载完成
+          const tempImg = new Image();
+          tempImg.onload = () => {
+            console.log('✅ 原图加载完成并显示');
+            compareBtn.style.opacity = '1';
+          };
+          tempImg.onerror = (error) => {
+            console.error('❌ 原图加载失败:', error);
+            compareBtn.style.opacity = '1';
+            this.showToast('原图加载失败');
+          };
+          tempImg.src = originalImage;
+        }
         isShowingOriginal = true;
+      } else {
+        console.warn('⚠️ 没有原图可以显示');
       }
     };
 
     const showResult = () => {
       if (this.state.resultImage) {
+        console.log('👀 显示生成图:', this.state.resultImage);
         resultImage.src = this.state.resultImage;
         isShowingOriginal = false;
       }
@@ -544,6 +581,9 @@ class HairSwapApp {
     compareBtn.addEventListener('touchstart', startPress);
     compareBtn.addEventListener('touchend', endPress);
     compareBtn.addEventListener('touchcancel', endPress);
+
+    // 标记已绑定事件
+    compareBtn._compareEventsBound = true;
   }
 
   saveResult() {
@@ -576,22 +616,46 @@ class HairSwapApp {
 
   // 配置后端服务器地址
   getBackendUrl() {
-    // 使用固定的后端服务器地址
     const hostname = window.location.hostname;
-    // 如果是 file:// 协议或者 hostname 为空，使用固定的 192.168.2.60
-    if (!hostname || hostname === '' || window.location.protocol === 'file:') {
-      return 'http://192.168.2.60:3001';
+    const protocol = window.location.protocol;
+    const port = window.location.port;
+
+    console.log('🌐 getBackendUrl - hostname:', hostname, 'protocol:', protocol, 'port:', port);
+
+    // 情况1：file:// 协议
+    if (protocol === 'file:') {
+      console.log('📁 file:// 协议，使用 localhost:3001');
+      return 'http://localhost:3001';
     }
-    // 如果是 localhost，使用 192.168.2.60
+
+    // 情况2：localhost 或 127.0.0.1 访问（本地开发）
     if (hostname === 'localhost' || hostname === '127.0.0.1') {
-      return 'http://192.168.2.60:3001';
+      console.log('🏠 本地开发环境，使用 localhost:3001');
+      return 'http://localhost:3001';
     }
-    // 其他情况使用当前 hostname
+
+    // 情况3：其他局域网IP（如 192.168.x.x）
+    if (hostname.startsWith('192.168.')) {
+      console.log('📡 局域网访问，使用:', 'http://' + hostname + ':3001');
+      return 'http://' + hostname + ':3001';
+    }
+
+    // 情况4：公网服务器（默认）
+    console.log('🌍 公网服务器，使用:', 'http://' + hostname + ':3001');
     return 'http://' + hostname + ':3001';
   }
 
   // 加载历史记录
-  async loadHistory() {
+  async loadHistory(forceReload = false) {
+    // 检查缓存是否有效（5分钟内不重新加载）
+    const CACHE_DURATION = 5 * 60 * 1000; // 5分钟
+    const now = Date.now();
+
+    if (!forceReload && this.state.historyLoaded && (now - this.state.historyCacheTime) < CACHE_DURATION) {
+      console.log('✅ 使用缓存的历史记录');
+      return;
+    }
+
     // 优先尝试从服务器加载
     try {
       const serverUrl = this.getBackendUrl() + '/history-list';
@@ -601,9 +665,14 @@ class HairSwapApp {
         const data = await response.json();
         this.state.history = (data.records || []).map(record => {
           console.log('🖼️  历史记录（服务器）:', record.id, record.hairstyleName, record.imageUrl ? '有图片' : '无图片');
+          // 如果是相对路径，转换为完整URL
+          let fullImageUrl = record.imageUrl;
+          if (fullImageUrl && fullImageUrl.startsWith('/')) {
+            fullImageUrl = this.getBackendUrl() + fullImageUrl;
+          }
           return {
             ...record,
-            imageUrl: record.imageUrl
+            imageUrl: fullImageUrl
           };
         });
         // 按时间倒序排列（最新的在前）
@@ -621,6 +690,10 @@ class HairSwapApp {
           return (b.id || 0) - (a.id || 0);
         });
         console.log('✅ 从服务器加载历史记录:', this.state.history.length, '条');
+
+        // 更新缓存状态
+        this.state.historyLoaded = true;
+        this.state.historyCacheTime = now;
 
         // 同时保存到 localStorage 作为备份
         this.saveHistoryToLocalStorage();
@@ -650,6 +723,10 @@ class HairSwapApp {
           return (b.id || 0) - (a.id || 0);
         });
         console.log('✅ 从 localStorage 加载历史记录:', this.state.history.length, '条');
+
+        // 更新缓存状态
+        this.state.historyLoaded = true;
+        this.state.historyCacheTime = now;
       } else {
         console.log('ℹ️ localStorage 中没有历史记录');
         this.state.history = [];
@@ -697,9 +774,6 @@ class HairSwapApp {
     }
 
     this.saveHistory();
-
-    // 保存到文件
-    this.saveHistoryToFile(record);
   }
 
   // 保存历史记录到文件
@@ -894,66 +968,169 @@ class HairSwapApp {
 
   // 查看历史记录项（从服务器加载）
   async viewHistoryItem(id) {
-    // 从服务器获取记录详情
+    const now = Date.now();
+    const CACHE_DURATION = this.state.historyDetailCacheTime;
+
+    // 第一步：先显示页面和设置基本状态
+    this.setupDetailPageUI(id);
+
+    // 第二步：检查前端缓存
+    if (this.state.historyDetailCache[id] && (now - this.state.historyDetailCache[id].time) < CACHE_DURATION) {
+      console.log('✅ 使用缓存的历史记录详情:', id);
+      this.updateDetailPageContent(this.state.historyDetailCache[id].data);
+      return;
+    }
+
+    // 第三步：从服务器获取记录详情
     try {
       const serverUrl = this.getBackendUrl() + '/history/' + id;
       const response = await fetch(serverUrl);
       if (response.ok) {
         const record = await response.json();
-        this.state.resultImage = record.imageUrl;
-        // 兼容云端服务器返回的 originalImage 和之前的 originalImageUrl
-        this.state.originalImageUrl = record.originalImage || record.originalImageUrl;
-        // 清空 photoBase64，确保查看原图时使用历史记录的原图而不是之前上传的
-        this.state.photoBase64 = null;
 
-        // 显示结果页面
-        const resultImage = document.getElementById('result-image');
-        resultImage.src = this.state.resultImage;
-
-        // 显示对比按钮和保存按钮
-        const compareBtn = document.getElementById('compare-btn');
-        const saveBtn = document.getElementById('save-btn');
-        // 有原图 URL 或 base64 时才显示对比按钮
-        const hasOriginalImage = this.state.originalImageUrl || this.state.photoBase64;
-        if (compareBtn) compareBtn.style.display = hasOriginalImage ? 'flex' : 'none';
-        if (saveBtn) saveBtn.style.display = 'block';
-
-        // 设置对比按钮事件
-        this.setupCompareButton();
-
-        // 更新标题
-        const headerTitle = document.querySelector('#result-page h2');
-        if (headerTitle) {
-          headerTitle.textContent = record.hairstyleName || '历史记录';
+        // 处理图片URL，转换为完整URL
+        if (record.imageUrl && !record.imageUrl.startsWith('http')) {
+          record.imageUrl = this.getBackendUrl() + record.imageUrl;
+        }
+        if (record.originalImage && !record.originalImage.startsWith('http')) {
+          record.originalImage = this.getBackendUrl() + record.originalImage;
         }
 
-        // 设置标记，让主事件处理器知道当前在详情页
-        this.isInDetailPage = true;
-
-        // 绑定详情页 header 点击事件
-        const resultHeader = document.getElementById('result-header');
-        const resultBackBtn = document.getElementById('back-btn');
-
-        // 直接使用 onclick 来控制，避免事件冲突
-        resultBackBtn.onclick = (e) => {
-          e.stopPropagation(); // 阻止冒泡到 header
-          console.log('🔙 点击详情页返回按钮，返回列表页');
-          this.showHistory();
+        // 更新前端缓存
+        this.state.historyDetailCache[id] = {
+          data: record,
+          time: now
         };
 
-        // header 整体点击事件（排除 back-btn）
-        resultHeader.onclick = (e) => {
-          if (e.target !== resultBackBtn && !resultBackBtn.contains(e.target)) {
-            console.log('🔙 点击详情页 header 区域，返回列表页');
-            this.showHistory();
-          }
-        };
-
-        this.showPage('result-page');
+        // 更新页面内容
+        this.updateDetailPageContent(record);
       }
     } catch (error) {
       console.error('加载历史记录失败:', error);
       this.showToast('加载失败');
+    }
+  }
+
+  // 设置详情页UI（先显示页面）
+  setupDetailPageUI(id) {
+    // 设置标记，让主事件处理器知道当前在详情页
+    this.isInDetailPage = true;
+
+    // 清空之前的图片和状态
+    this.state.resultImage = null;
+    this.state.originalImageUrl = null;
+    this.state.photoBase64 = null;
+
+    // 先显示结果页面（不等待数据）
+    this.showPage('result-page');
+
+    // 显示加载状态
+    const resultImage = document.getElementById('result-image');
+    if (resultImage) {
+      resultImage.src = ''; // 清空
+      resultImage.alt = '加载中...';
+    }
+
+    // 绑定详情页 header 点击事件
+    const resultHeader = document.getElementById('result-header');
+    const resultBackBtn = document.getElementById('back-btn');
+
+    // 直接使用 onclick 来控制，避免事件冲突
+    resultBackBtn.onclick = (e) => {
+      e.stopPropagation(); // 阻止冒泡到 header
+      console.log('🔙 点击详情页返回按钮，返回列表页');
+      this.showHistory();
+    };
+
+    // header 整体点击事件（排除 back-btn）
+    resultHeader.onclick = (e) => {
+      if (e.target !== resultBackBtn && !resultBackBtn.contains(e.target)) {
+        console.log('🔙 点击详情页 header 区域，返回列表页');
+        this.showHistory();
+      }
+    };
+
+    // 显示对比按钮和保存按钮
+    const compareBtn = document.getElementById('compare-btn');
+    const saveBtn = document.getElementById('save-btn');
+    if (compareBtn) compareBtn.style.display = 'none'; // 先隐藏，有数据时再显示
+    if (saveBtn) saveBtn.style.display = 'block';
+
+    // 设置对比按钮事件
+    this.setupCompareButton();
+  }
+
+  // 更新详情页内容（数据加载完成后调用）
+  updateDetailPageContent(record) {
+    console.log('📋 更新详情页内容:', record);
+
+    this.state.resultImage = record.imageUrl;
+    // 兼容云端服务器返回的 originalImage 和之前的 originalImageUrl
+    let originalImageUrl = record.originalImage || record.originalImageUrl;
+
+    // 如果是相对路径，转换为完整URL
+    if (originalImageUrl && !originalImageUrl.startsWith('http') && !originalImageUrl.startsWith('data:')) {
+      originalImageUrl = this.getBackendUrl() + originalImageUrl;
+    }
+
+    this.state.originalImageUrl = originalImageUrl;
+    // 清空 photoBase64，确保查看原图时使用历史记录的原图而不是之前上传的
+    this.state.photoBase64 = null;
+
+    console.log('🖼️  生成图URL:', this.state.resultImage);
+    console.log('🖼️  原图URL:', this.state.originalImageUrl);
+
+    // 创建隐藏的图片元素来加载原图（确保完整加载）
+    if (this.state.originalImageUrl) {
+      if (!this.state.hiddenOriginalImg) {
+        this.state.hiddenOriginalImg = new Image();
+      }
+      this.state.hiddenOriginalImg.onload = () => {
+        console.log('✅ 原图加载完成:', this.state.originalImageUrl);
+      };
+      this.state.hiddenOriginalImg.onerror = (error) => {
+        console.error('❌ 原图加载失败:', this.state.originalImageUrl, error);
+      };
+      this.state.hiddenOriginalImg.src = this.state.originalImageUrl;
+      console.log('📥 开始加载原图:', this.state.originalImageUrl);
+    }
+
+    // 显示图片
+    const resultImage = document.getElementById('result-image');
+    if (resultImage) {
+      resultImage.alt = record.hairstyleName || '生成图';
+
+      // 先清除旧的事件监听器
+      resultImage.onload = null;
+      resultImage.onerror = null;
+
+      // 添加加载事件监听
+      resultImage.onload = () => {
+        console.log('✅ 生成图加载完成');
+      };
+      // resultImage.onerror = () => {
+      //   console.error('❌ 生成图加载失败');
+      //   this.showToast('生成图加载失败');
+      // };
+
+      // 只有当src真的变化时才设置，避免重复触发事件
+      if (resultImage.src !== this.state.resultImage) {
+        console.log('📥 开始加载生成图:', this.state.resultImage);
+        resultImage.src = this.state.resultImage;
+      } else {
+        console.log('📥 生成图URL未变化，跳过重新加载');
+      }
+    }
+
+    // 显示对比按钮
+    const compareBtn = document.getElementById('compare-btn');
+    const hasOriginalImage = this.state.originalImageUrl || this.state.photoBase64;
+    if (compareBtn) compareBtn.style.display = hasOriginalImage ? 'flex' : 'none';
+
+    // 更新标题
+    const headerTitle = document.querySelector('#result-page h2');
+    if (headerTitle) {
+      headerTitle.textContent = record.hairstyleName || '历史记录';
     }
   }
 

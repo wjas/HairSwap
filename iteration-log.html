@@ -225,6 +225,261 @@
     <main>
       <article>
         <div class="bar">
+          <span>2026-03-10 07:30 修复对比按钮与事件监听器问题 - 完善用户体验</span>
+          <span>v1.8.0</span>
+        </div>
+        <div class="content">
+          <h2>问题回顾</h2>
+          <ul>
+            <li>🔴 <strong>对比按钮覆盖主图片事件监听器</strong>：对比按钮代码直接设置 resultImage.onload/onerror，覆盖了详情页的主图片事件处理</li>
+            <li>🔴 <strong>生成图加载后误报错</strong>：由于事件监听器被覆盖，导致生成图加载成功后触发 onerror</li>
+            <li>🔴 <strong>首页自动加载历史记录</strong>：构造函数中自动加载历史记录，影响首页加载速度</li>
+            <li>🔴 <strong>旧代码 saveHistoryToFile 使用不存在的变量</strong>：使用 this.state.serverIP 导致请求失败</li>
+            <li>🔴 <strong>对比按钮在生成结果页不显示</strong>：showResult 函数中忘记显示对比按钮</li>
+          </ul>
+
+          <h2>修复方案</h2>
+
+          <h3>修复1：事件监听器管理（h5/js/app.js）</h3>
+          <ul>
+            <li>在 updateDetailPageContent 中先清除旧的 onload/onerror 事件监听器</li>
+            <li>添加 URL 变化检查，避免重复设置 src 触发事件</li>
+            <li>使用临时 Image 对象在 setupCompareButton 中监听加载状态，不覆盖 resultImage 的事件</li>
+          </ul>
+
+          <h3>修复2：首页不自动加载历史记录（h5/js/app.js）</h3>
+          <ul>
+            <li>注释掉构造函数中的 this.loadHistory() 调用</li>
+            <li>改为用户点击"生成记录"按钮时才加载</li>
+          </ul>
+
+          <h3>修复3：删除旧代码调用（h5/js/app.js）</h3>
+          <ul>
+            <li>删除 addToHistory 中对 saveHistoryToFile 的调用</li>
+            <li>保留 generateWithMockMode 中的 saveHistoryToServer 调用</li>
+          </ul>
+
+          <h3>修复4：显示对比按钮（h5/js/app.js）</h3>
+          <ul>
+            <li>在 showResult 函数中添加显示对比按钮的代码</li>
+            <li>确保 compareBtn.style.display = 'flex'</li>
+          </ul>
+
+          <h3>修复5：注释调试代码（h5/js/app.js）</h3>
+          <ul>
+            <li>注释掉 initDebugPanel 调试面板初始化代码</li>
+            <li>注释掉 showVersion 版本号显示代码</li>
+          </ul>
+
+          <h2>结果</h2>
+          <ul>
+            <li>✅ 生成图加载后不再误报错</li>
+            <li>✅ 对比按钮功能正常，不影响主图片加载</li>
+            <li>✅ 首页加载速度提升，不加载历史记录</li>
+            <li>✅ 生成结果页对比按钮正常显示</li>
+            <li>✅ 调试按钮和版本号按钮已隐藏</li>
+          </ul>
+        </div>
+      </article>
+
+      <article>
+        <div class="bar">
+          <span>2026-03-10 05:15 彻底解决历史记录卡顿问题 - 全面优化方案</span>
+          <span>v1.7.0</span>
+        </div>
+        <div class="content">
+          <h2>问题回顾</h2>
+          <ul>
+            <li>🔴 <strong>历史记录列表页和详情页仍然卡顿</strong>：即使清理了系统文件和修复了目录遍历，用户反馈仍然卡顿</li>
+            <li>🔴 <strong>响应数据量过大</strong>：每次返回所有历史记录的base64图片，数据量达几MB</li>
+            <li>🔴 <strong>无缓存机制</strong>：每次访问都重新请求服务器，没有利用缓存</li>
+          </ul>
+
+          <h2>根本原因分析</h2>
+          <ul>
+            <li><strong>问题1：响应体积过大</strong>
+              <ul>
+                <li>后端返回所有历史记录的base64编码图片</li>
+                <li>单条记录约50KB，20条记录就是1MB</li>
+                <li>导致网络传输慢，JSON解析慢</li>
+              </ul>
+            </li>
+            <li><strong>问题2：无缓存机制</strong>
+              <ul>
+                <li>前端每次都重新请求服务器</li>
+                <li>后端每次都重新读取文件系统</li>
+                <li>完全没有利用缓存</li>
+              </ul>
+            </li>
+            <li><strong>问题3：无数据限制</strong>
+              <ul>
+                <li>返回所有历史记录，没有分页或数量限制</li>
+                <li>历史记录增长后会越来越慢</li>
+              </ul>
+            </li>
+          </ul>
+
+          <h2>全面优化方案</h2>
+
+          <h3>优化1：前端缓存机制（h5/js/app.js）</h3>
+          <ul>
+            <li>添加5分钟前端缓存，避免重复请求</li>
+            <li>新增 historyLoaded 和 historyCacheTime 状态管理</li>
+            <li>保存新记录后自动失效缓存，确保数据一致性</li>
+            <li>loadHistory() 方法支持 forceReload 参数</li>
+          </ul>
+
+          <h3>优化2：后端缓存机制（h5/test-server.js）</h3>
+          <ul>
+            <li>添加10分钟服务器端缓存，大幅减少重复处理</li>
+            <li>historyListCache 和 historyListCacheTime 变量管理缓存</li>
+            <li>保存新记录后清除缓存，确保新记录能立即显示</li>
+          </ul>
+
+          <h3>优化3：返回图片URL而非base64（h5/test-server.js）</h3>
+          <ul>
+            <li>从返回 base64 改为返回相对路径 URL</li>
+            <li>响应体积从 MB 级降到 KB 级（减少约95%）</li>
+            <li>前端自动将相对路径转换为完整URL</li>
+            <li>浏览器可以独立缓存图片，利用已有缓存头</li>
+          </ul>
+
+          <h3>优化4：限制返回记录数量（h5/test-server.js）</h3>
+          <ul>
+            <li>最多返回50条记录，避免数据量过大</li>
+            <li>按时间倒序排列，最新的在前</li>
+            <li>避免历史记录无限增长导致的性能问题</li>
+          </ul>
+
+          <h3>优化5：版本号更新（强制刷新缓存）</h3>
+          <ul>
+            <li>更新 index.html 中 app.js?v=20260310a</li>
+            <li>更新 app.js 中 APP_VERSION = 2</li>
+            <li>确保用户获得最新代码</li>
+          </ul>
+
+          <h2>部署实施</h2>
+          <ul>
+            <li>创建自动化部署脚本 deploy-optimizations.sh</li>
+            <li>一键上传文件并重启服务</li>
+            <li>成功部署到 106.52.29.87</li>
+          </ul>
+
+          <h2>性能提升效果</h2>
+          <ul>
+            <li>✅ <strong>首次加载</strong>：响应体积减少约95%（从几MB降到几十KB）</li>
+            <li>✅ <strong>二次访问</strong>：5分钟内无需网络请求，直接使用前端缓存</li>
+            <li>✅ <strong>服务器压力</strong>：10分钟缓存大幅减少文件系统读取</li>
+            <li>✅ <strong>图片加载</strong>：浏览器独立缓存图片，利用已有24小时缓存</li>
+          </ul>
+
+          <h2>技术总结</h2>
+          <ul>
+            <li><strong>缓存是王道</strong>：前后端都要有缓存机制</li>
+            <li><strong>数据体积很重要</strong>：避免返回base64大图片，改用URL</li>
+            <li><strong>数据限制必要</strong>：分页或数量限制防止无限增长</li>
+            <li><strong>版本号机制</strong>：确保用户获得最新代码</li>
+            <li><strong>自动化部署</strong>：减少人为错误，提高效率</li>
+          </ul>
+
+          <div class="note">
+            <strong>关键优化：</strong>从返回base64改为返回URL是最大的性能提升点，响应体积减少了约95%。配合前后端缓存机制，二次访问几乎是瞬时的。
+          </div>
+        </div>
+      </article>
+      <article>
+        <div class="bar">
+          <span>2026-03-10 05:03 历史记录列表页和详情页卡顿问题排查与修复</span>
+          <span></span>
+        </div>
+        <div class="content">
+          <h2>问题描述</h2>
+          <ul>
+            <li>🔴 <strong>历史记录列表页和详情页卡顿严重</strong>：首次打开和反复进出都很卡</li>
+            <li>🔴 <strong>即使二次访问也卡顿</strong>：没有体现出缓存的效果</li>
+            <li>🔍 <strong>问题背景</strong>：在改为 Git 更新服务端之前页面很流畅，数据量几乎不变的情况下突然变得非常卡顿</li>
+          </ul>
+
+          <h2>问题排查过程</h2>
+          <ul>
+            <li><strong>检查服务器运行状态</strong>：负载正常（uptime, free -h, df -h），没有频繁自动更新脚本</li>
+            <li><strong>检查服务器端 history 目录内容</strong>：
+              <ul>
+                <li>发现大量 Mac 系统文件：.DS_Store、._*（如 ._1709032800）</li>
+                <li>发现非历史记录文件：import-folders.sh、README.md、update-timestamps.sh</li>
+                <li>这些文件被代码当成了历史记录目录处理，导致大量无效操作</li>
+              </ul>
+            </li>
+            <li><strong>检查代码逻辑</strong>：
+              <ul>
+                <li>代码遍历 history 目录时没有检查是否为目录</li>
+                <li>没有跳过以点开头的系统文件</li>
+                <li>导致对每个文件都尝试读取 metadata.json，大大拖慢响应速度</li>
+              </ul>
+            </li>
+          </ul>
+
+          <h2>已完成的修复</h2>
+          <ul>
+            <li><strong>更新 .gitignore 文件</strong>：
+              <ul>
+                <li>添加 ._* 规则，忽略 Mac 系统文件</li>
+                <li>添加 h5/history/*.sh，忽略 history 目录下的 shell 脚本</li>
+                <li>添加 h5/history/*.md，忽略 history 目录下的 Markdown 文件</li>
+                <li>这些文件不加入版本控制不会有任何问题</li>
+              </ul>
+            </li>
+            <li><strong>清理服务器端 history 目录</strong>：
+              <ul>
+                <li>删除所有 .DS_Store 和 ._* 系统文件</li>
+                <li>删除 import-folders.sh、README.md、update-timestamps.sh 等非历史记录文件</li>
+              </ul>
+            </li>
+            <li><strong>修改代码逻辑（h5/test-server.js:323-331）</strong>：
+              <ul>
+                <li>添加检查，跳过所有以点开头的文件</li>
+                <li>添加检查，只处理目录文件，跳过普通文件</li>
+                <li>避免无效操作，大幅提升响应速度</li>
+              </ul>
+            </li>
+            <li><strong>为图片访问接口添加缓存头（之前已完成）</strong>：
+              <ul>
+                <li>设置 Cache-Control: public, max-age=86400（缓存 24 小时）</li>
+                <li>设置 Last-Modified，支持浏览器缓存验证</li>
+                <li>二次访问图片时，浏览器应该从缓存加载，无需重新请求</li>
+              </ul>
+            </li>
+          </ul>
+
+          <h2>待排查问题</h2>
+          <ul>
+            <li>🟡 <strong>用户反馈仍然卡顿</strong>：即使清理了目录和修复了代码，用户反馈历史记录列表页和详情页仍然卡顿，反复进出也卡</li>
+            <li>🟡 <strong>缓存效果不明显</strong>：二次访问同一个页面也很卡顿，没有体现出缓存的效果</li>
+            <li>🟡 <strong>需要进一步排查</strong>：
+              <ul>
+                <li>前端是否正确利用了浏览器缓存？</li>
+                <li>是否有其他代码问题导致卡顿？</li>
+                <li>是否是浏览器渲染性能问题？</li>
+                <li>是否需要优化前端代码（如防抖、节流、虚拟列表等）？</li>
+              </ul>
+            </li>
+          </ul>
+
+          <h2>下一步计划</h2>
+          <ul>
+            <li>深入排查前端代码，找出为什么二次访问仍然卡顿</li>
+            <li>验证浏览器缓存是否正常工作</li>
+            <li>考虑优化前端渲染性能（如使用虚拟列表、减少 DOM 操作等）</li>
+          </ul>
+
+          <div class="note">
+            <strong>关键发现：</strong>服务器端 history
+            目录里的非目录文件和系统文件是之前卡顿的主要原因。代码没有过滤这些文件，导致大量无效操作。现在已经清理了目录并修复了代码，但用户仍然反馈卡顿，需要进一步排查前端代码和缓存机制。
+          </div>
+        </div>
+      </article>
+      <article>
+        <div class="bar">
           <span>2026-03-10 02:54 图片格式优化与查看原图功能修复</span>
           <span>v1.6.0</span>
         </div>
