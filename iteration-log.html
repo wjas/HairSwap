@@ -21,6 +21,11 @@
   - [ ] 版本号更新了吗？
   - [ ] 原因和方案写了吗？
   
+  ⛔ 重要原则：
+  - 只添加新内容，原有内容不可更改
+  - 除非收到明确的修改指令，否则不得删除或修改已有日志
+  - 新增内容必须按时间倒序排列（最新的在最上面）
+  
   更多规范见下方详细说明 ↓
   ========================
 -->
@@ -224,8 +229,248 @@
   <div id="tab-log" class="tab-content active">
     <main>
       <article>
+        <div class="bar">
+          <span>📅 2026-03-12 02:09 密码管理页优化与发型缩略图功能完善</span>
+          <span>v1.9.0</span>
+        </div>
+        <div class="content">
+          <h2>本次优化内容</h2>
+          <ul>
+            <li>✅ <strong>密码管理页标题动态显示</strong>：标题从"当前状态"改为"当前密码 ****"，****会显示实际密码值</li>
+            <li>✅ <strong>禁用/删除密码功能修复</strong>：修复 CORS 问题，PUT 和 DELETE 方法现在正常工作</li>
+            <li>✅ <strong>详情页发型缩略图优化</strong>：缩略图使用 `_thumb.jpg` 文件，加载更快</li>
+            <li>✅ <strong>按住显示发型图优化</strong>：按住缩略图时也只显示缩略图（放大），不加载完整图</li>
+            <li>✅ <strong>发型匹配问题修复</strong>：修正正则表达式，现在可以正确匹配"发型 1"到"发型 8"的所有发型</li>
+            <li>✅ <strong>文件同步检查</strong>：确认本地和服务端所有关键文件完全同步</li>
+          </ul>
+
+          <h2>技术修改详情</h2>
+
+          <h3>1. 密码管理页标题动态显示</h3>
+          <ul>
+            <li><strong>HTML 修改</strong>（h5/password-manager.html）：标题从"当前状态"改为"当前密码****"</li>
+            <li><strong>JavaScript 修改</strong>（h5/js/password-manager.js）：
+              <ul>
+                <li>在 <code>loadStatus()</code> 函数中动态更新标题</li>
+                <li>已启用时显示：<code>当前密码 1234</code></li>
+                <li>未启用时显示：<code>当前密码（未启用）</code></li>
+              </ul>
+            </li>
+            <li><strong>后端修改</strong>（h5/test-server.js）：
+              <ul>
+                <li><code>/api/password/status</code> 接口新增 <code>password</code> 字段</li>
+                <li>返回明文密码用于前端显示</li>
+              </ul>
+            </li>
+          </ul>
+
+          <h3>2. 禁用/删除密码功能修复</h3>
+          <ul>
+            <li><strong>问题</strong>：CORS 配置只允许 GET 和 POST，PUT 和 DELETE 方法被拦截</li>
+            <li><strong>修复</strong>（h5/test-server.js 第 110 行）：
+              <pre><code>// 修改前
+res.setHeader('Access-Control-Allow-Methods', 'GET, POST, OPTIONS');
+
+// 修改后
+res.setHeader('Access-Control-Allow-Methods', 'GET, POST, PUT, DELETE, OPTIONS');</code></pre>
+            </li>
+            <li><strong>效果</strong>：密码管理页的禁用和删除按钮现在可以正常工作</li>
+          </ul>
+
+          <h3>3. 详情页发型缩略图优化</h3>
+          <ul>
+            <li><strong>缩略图显示</strong>：使用 <code>hairstyle{N}_thumb.jpg</code> 而不是 <code>hairstyle{N}.png</code></li>
+            <li><strong>按住显示</strong>：按住缩略图时也只显示缩略图（放大到主图大小），不加载完整 PNG 图</li>
+            <li><strong>优势</strong>：
+              <ul>
+                <li>加载速度更快（缩略图几 KB vs 完整图几百 KB）</li>
+                <li>节省带宽和流量</li>
+                <li>用户体验更好，无需等待大图加载</li>
+              </ul>
+            </li>
+          </ul>
+
+          <h3>4. 发型匹配问题修复</h3>
+          <ul>
+            <li><strong>问题</strong>：正则表达式 <code>/发型 (\d+)/</code> 要求必须有空格，导致"发型 8"匹配失败</li>
+            <li><strong>修复</strong>（h5/js/app.js）：
+              <pre><code>// 修改前
+const match = record.hairstyleName.match(/发型 (\d+)/);
+
+// 修改后
+const match = record.hairstyleName.match(/发型\s*(\d+)/);</code></pre>
+            </li>
+            <li><strong>效果</strong>：现在可以正确匹配"发型 1"、"发型 8"、"发型 1"等所有格式</li>
+          </ul>
+
+          <h2>文件同步状态</h2>
+          <ul>
+            <li>✅ <code>h5/index.html</code> - MD5 验证通过</li>
+            <li>✅ <code>h5/password-manager.html</code> - MD5 验证通过</li>
+            <li>✅ <code>h5/js/app.js</code> - MD5 验证通过</li>
+            <li>✅ <code>h5/js/password-manager.js</code> - MD5 验证通过</li>
+            <li>✅ <code>h5/styles/main.css</code> - MD5 验证通过</li>
+            <li>✅ <code>h5/styles/password-manager.css</code> - MD5 验证通过</li>
+            <li>✅ <code>h5/test-server.js</code> - 已上传并重启服务</li>
+          </ul>
+
+          <div class="note">
+            <strong>版本说明：</strong>v1.9.0 版本专注于密码管理页的体验优化和详情页发型缩略图的性能优化。密码管理页现在可以直观显示当前密码，禁用/删除功能正常工作。详情页使用缩略图后加载速度显著提升。
+          </div>
+        </div>
+      </article>
+
+      <article>
+        <div class="bar">
+          <span>📅 2026-03-12 00:27 4 位数密码功能优化与多密码方案评估</span>
+          <span>v1.7.2</span>
+        </div>
+        <div class="content">
+          <h2>本次优化内容</h2>
+          <ul>
+            <li>✅ <strong>密码输入框改为四个格子样式</strong>：4 个独立的数字输入框，每个框输入 1 位数字</li>
+            <li>✅ <strong>支持密码连续输入</strong>：输入数字后自动跳转到下一个格子，删除键自动回退</li>
+            <li>✅ <strong>点击弹窗获取焦点</strong>：点击弹窗任意位置（除按钮外）自动聚焦到第一个输入框</li>
+            <li>✅ <strong>移动端数字键盘优化</strong>：使用 type="tel" 触发移动端数字键盘</li>
+            <li>✅ <strong>移除自动填充功能</strong>：每次打开页面都需要重新输入密码，方便测试</li>
+            <li>✅ <strong>移除自动聚焦功能</strong>：因移动端浏览器限制，自动聚焦容易失败</li>
+          </ul>
+
+          <h2>技术修改</h2>
+          <h3>1. HTML 结构修改（h5/index.html）</h3>
+          <ul>
+            <li>将单个密码输入框改为 4 个独立输入框：<code>password-input-1</code> 到 <code>password-input-4</code></li>
+            <li>添加隐藏输入框 <code>password-input-hidden</code> 用于存储完整密码</li>
+            <li>输入框类型改为 <code>type="tel"</code>，添加 <code>autocomplete="off"</code></li>
+          </ul>
+
+          <h3>2. CSS 样式修改（h5/styles/main.css）</h3>
+          <ul>
+            <li>新增 <code>.password-digit</code> 样式：50px × 60px，字体 28px</li>
+            <li>添加 <code>.filled</code> 样式：已填充状态的视觉反馈</li>
+            <li>添加 <code>.error</code> 样式：错误时显示抖动动画</li>
+            <li>添加移动端媒体查询优化：输入框增大到 60px × 70px</li>
+          </ul>
+
+          <h3>3. JavaScript 逻辑修改（h5/js/app.js）</h3>
+          <ul>
+            <li>重写 <code>initPasswordVerification()</code> 函数支持四个输入框</li>
+            <li>实现自动跳转逻辑：输入数字后自动聚焦到下一个输入框</li>
+            <li>实现删除回退逻辑：按删除键时自动跳转到上一个输入框</li>
+            <li>添加点击弹窗聚焦功能：点击弹窗内容时聚焦到第一个输入框</li>
+            <li>移除自动填充和自动聚焦逻辑</li>
+          </ul>
+
+          <h2>多密码方案评估</h2>
+          <h3>需求背景</h3>
+          <ul>
+            <li>当前只支持单个密码，无法为不同用户设置不同密码</li>
+            <li>需要支持多个密码（≤20 个），每个密码有效期不同</li>
+            <li>需要统计每个密码的使用次数</li>
+            <li>增删改密码频次很低，过期密码手动删除</li>
+          </ul>
+
+          <h3>技术方案</h3>
+          <ul>
+            <li><strong>数据结构改造</strong>：
+              <pre><code>{
+  "passwords": [
+    {
+      "id": "uuid-1",
+      "password": "1234",
+      "expires": "2026-12-31T23:59:59.000Z",
+      "enabled": true,
+      "usageCount": 0,
+      "lastUsed": null
+    }
+  ]
+}</code></pre>
+            </li>
+            <li><strong>后端 API 修改</strong>：
+              <ul>
+                <li><code>POST /api/password/verify</code> - 遍历数组验证密码</li>
+                <li><code>GET /api/password/status</code> - 返回所有密码状态</li>
+                <li><code>POST /api/password/set</code> - 添加到数组</li>
+                <li><code>DELETE /api/password/:id</code> - 根据 ID 删除</li>
+                <li><code>GET /api/password/list</code> - 获取密码列表（新增）</li>
+              </ul>
+            </li>
+            <li><strong>前端管理页面</strong>：
+              <ul>
+                <li>密码列表显示（表格形式）</li>
+                <li>添加新密码功能</li>
+                <li>删除单个密码功能</li>
+                <li>显示使用次数和最后使用时间</li>
+                <li>过期密码视觉标识</li>
+              </ul>
+            </li>
+          </ul>
+
+          <h3>工作量评估</h3>
+          <table>
+            <thead>
+              <tr>
+                <th>模块</th>
+                <th>工作内容</th>
+                <th>预估时间</th>
+              </tr>
+            </thead>
+            <tbody>
+              <tr>
+                <td>后端改造</td>
+                <td>数据结构、API 修改、使用统计</td>
+                <td>2.5 小时</td>
+              </tr>
+              <tr>
+                <td>前端管理页面</td>
+                <td>密码列表、添加、删除、统计显示</td>
+                <td>2 小时</td>
+              </tr>
+              <tr>
+                <td>前端验证适配</td>
+                <td>多密码验证逻辑</td>
+                <td>0.3 小时</td>
+              </tr>
+              <tr>
+                <td>测试</td>
+                <td>功能测试、边界测试</td>
+                <td>1 小时</td>
+              </tr>
+              <tr>
+                <td><strong>总计</strong></td>
+                <td>-</td>
+                <td><strong>约 6-7 小时</strong></td>
+              </tr>
+            </tbody>
+          </table>
+
+          <h3>实施建议</h3>
+          <ul>
+            <li>✅ 技术难度低，风险可控</li>
+            <li>✅ 性能无压力（≤20 个密码）</li>
+            <li>✅ 建议一次性完成多密码 + 使用统计</li>
+            <li>✅ 1 个工作日内可以完成并上线</li>
+          </ul>
+
+          <h2>文件同步检查</h2>
+          <ul>
+            <li>✅ <code>h5/index.html</code> - 已上传到服务器</li>
+            <li>✅ <code>h5/styles/main.css</code> - 已上传到服务器</li>
+            <li>✅ <code>h5/js/app.js</code> - 已上传到服务器</li>
+            <li>✅ <code>h5/password-manager.html</code> - 已上传到服务器</li>
+            <li>✅ <code>h5/js/password-manager.js</code> - 已上传到服务器</li>
+            <li>✅ <code>h5/styles/password-manager.css</code> - 已上传到服务器</li>
+          </ul>
+
+          <div class="note">
+            <strong>关键决策：</strong>当前单密码方案运行稳定，四个格子输入体验良好。多密码方案工程量约 6-7 小时，技术难度低。如需要为不同用户设置不同密码并追踪使用情况，建议实施多密码方案。
+          </div>
+        </div>
+      </article>
+
+      <article>
         <div class="bar" style="background: linear-gradient(135deg, #fbbf24, #f59e0b); color: #1f2937;">
-          <span>🎉 2026-03-10 07:30 重要版本V1.8.0：5G环境下可用，列表页速度满意，详情页勉强能用</span>
+          <span>🎉 2026-03-10 07:30 重要版本 V1.8.0：5G 环境下可用，列表页速度满意，详情页勉强能用</span>
           <span style="background: #1f2937; color: #fbbf24;">v1.8.0</span>
         </div>
         <div class="content">

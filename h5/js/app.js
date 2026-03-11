@@ -68,6 +68,7 @@ class HairSwapApp {
     this.config = {
       maxFileSize: 10 * 1024 * 1024,
       apiBaseUrl: '', // 留空表示使用本地测试模式
+      apiServerUrl: 'http://106.52.29.87:3001', // API 服务器地址（用于密码验证等）
       useMockMode: true, // 本地测试模式：使用测试脚本直接调用 API
       hairstyleMap: {
         'style1': 'hairstyle1.png',
@@ -106,6 +107,198 @@ class HairSwapApp {
   init() {
     this.bindEvents();
     this.loadHairstyleTemplates();
+    this.initPasswordVerification(); // 初始化密码验证
+  }
+
+  // 初始化密码验证
+  initPasswordVerification() {
+    const modal = document.getElementById('password-modal');
+    const digitInputs = [
+      document.getElementById('password-input-1'),
+      document.getElementById('password-input-2'),
+      document.getElementById('password-input-3'),
+      document.getElementById('password-input-4')
+    ];
+    const hiddenInput = document.getElementById('password-input-hidden');
+    const submitBtn = document.getElementById('password-submit-btn');
+    const errorDiv = document.getElementById('password-error');
+
+    if (!modal || !digitInputs[0] || !submitBtn) {
+      console.log('⚠️ 密码验证组件未找到，跳过密码验证');
+      return;
+    }
+
+    let attemptCount = 0;
+    const maxAttempts = 3;
+
+    // 检查密码状态
+    this.checkPasswordStatus().then(status => {
+      if (!status.enabled) {
+        console.log('🔓 密码验证未启用');
+        return;
+      }
+
+      // 显示密码弹窗
+      modal.style.display = 'block';
+    }).catch(error => {
+      console.error('❌ 检查密码状态失败:', error);
+    });
+
+    // 点击弹窗内容时聚焦到第一个输入框
+    const modalContent = modal.querySelector('.modal-content');
+    if (modalContent) {
+      modalContent.addEventListener('click', (e) => {
+        // 如果点击的不是按钮，聚焦到第一个输入框
+        if (e.target.tagName !== 'BUTTON') {
+          digitInputs[0].focus();
+        }
+      });
+    }
+
+    // 处理数字输入框的输入
+    digitInputs.forEach((input, index) => {
+      // 输入事件
+      input.addEventListener('input', (e) => {
+        const value = e.target.value;
+
+        // 只允许数字
+        if (!/^\d*$/.test(value)) {
+          e.target.value = '';
+          return;
+        }
+
+        // 更新隐藏输入框
+        hiddenInput.value = digitInputs.map(inp => inp.value).join('');
+
+        // 标记为已填充
+        if (value) {
+          e.target.classList.add('filled');
+          // 自动跳转到下一个输入框
+          if (index < 3 && digitInputs[index + 1]) {
+            digitInputs[index + 1].focus();
+          }
+        } else {
+          e.target.classList.remove('filled');
+        }
+      });
+
+      // 按键事件
+      input.addEventListener('keydown', (e) => {
+        // 删除键，如果当前为空，跳转到前一个
+        if (e.key === 'Backspace' && !e.target.value && index > 0) {
+          e.preventDefault();
+          digitInputs[index - 1].value = '';
+          digitInputs[index - 1].classList.remove('filled');
+          digitInputs[index - 1].focus();
+          hiddenInput.value = digitInputs.map(inp => inp.value).join('');
+        }
+      });
+
+      // 聚焦时选中内容
+      input.addEventListener('focus', (e) => {
+        e.target.select();
+      });
+    });
+
+    // 提交密码
+    submitBtn.addEventListener('click', () => {
+      const password = digitInputs.map(inp => inp.value).join('');
+
+      if (!password || password.length !== 4 || !/^\d{4}$/.test(password)) {
+        this.showPasswordError('请输入 4 位数字密码');
+        return;
+      }
+
+      attemptCount++;
+
+      this.verifyPassword(password).then(valid => {
+        if (valid) {
+          console.log('✅ 密码验证通过');
+          this.closePasswordModal();
+        } else {
+          console.log('❌ 密码验证失败');
+          if (attemptCount >= maxAttempts) {
+            this.showPasswordError(`密码错误，已达到最大尝试次数（${maxAttempts}次），请刷新页面重试`);
+            submitBtn.disabled = true;
+          } else {
+            this.showPasswordError(`密码错误，还剩${maxAttempts - attemptCount}次尝试机会`);
+            // 清空所有输入框
+            digitInputs.forEach(input => {
+              input.value = '';
+              input.classList.remove('filled');
+              input.classList.add('error');
+            });
+            hiddenInput.value = '';
+            // 移除错误样式
+            setTimeout(() => {
+              digitInputs.forEach(input => input.classList.remove('error'));
+            }, 300);
+            // 聚焦到第一个输入框
+            digitInputs[0].focus();
+          }
+        }
+      }).catch(error => {
+        console.error('❌ 验证密码失败:', error);
+        this.showPasswordError('验证失败，请稍后重试');
+      });
+    });
+
+    // 任意输入框回车提交
+    digitInputs.forEach(input => {
+      input.addEventListener('keypress', (e) => {
+        if (e.key === 'Enter') {
+          submitBtn.click();
+        }
+      });
+    });
+  }
+
+  // 检查密码状态
+  async checkPasswordStatus() {
+    try {
+      const response = await fetch(`${this.config.apiServerUrl}/api/password/status`);
+      const status = await response.json();
+      return status;
+    } catch (error) {
+      console.error('❌ 检查密码状态失败:', error);
+      return { enabled: false };
+    }
+  }
+
+  // 验证密码
+  async verifyPassword(password) {
+    try {
+      const response = await fetch(`${this.config.apiServerUrl}/api/password/verify`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json'
+        },
+        body: JSON.stringify({ password })
+      });
+
+      const result = await response.json();
+      return result.success;
+    } catch (error) {
+      console.error('❌ 验证密码失败:', error);
+      return false;
+    }
+  }
+
+  // 关闭密码弹窗
+  closePasswordModal() {
+    const modal = document.getElementById('password-modal');
+    if (modal) {
+      modal.style.display = 'none';
+    }
+  }
+
+  // 显示密码错误
+  showPasswordError(message) {
+    const errorDiv = document.getElementById('password-error');
+    if (errorDiv) {
+      errorDiv.textContent = message;
+      errorDiv.style.display = 'block';
+    }
   }
 
   bindEvents() {
@@ -587,30 +780,88 @@ class HairSwapApp {
   }
 
   saveResult() {
-    // 优先使用原始图片 URL（火山引擎未经过 sharp 重新编码的图片）
-    const imageUrl = this.state.originalImageUrl || this.state.resultImage;
+    // 使用生成图 URL（用户想要保存的是生成后的图片）
+    const imageUrl = this.state.resultImage;
     if (!imageUrl) {
       this.showToast('没有可保存的图片');
       return;
     }
 
-    // 如果有原始图片 URL，直接打开新窗口让用户保存
-    if (this.state.originalImageUrl) {
-      window.open(this.state.originalImageUrl, '_blank');
-      this.showToast('已在新窗口打开原始图片，请长按保存');
-    } else if (imageUrl.startsWith('data:')) {
-      // 是 base64，直接下载
+    // 检测是否是移动设备
+    const isMobile = /Android|iPhone|iPad|iPod|webOS|BlackBerry|IEMobile|Opera Mini/i.test(navigator.userAgent);
+
+    // 如果是 base64，直接下载
+    if (imageUrl.startsWith('data:')) {
+      if (isMobile) {
+        // 移动端：使用长按保存的方式
+        this.openImageForSave(imageUrl);
+      } else {
+        // 桌面端：直接下载
+        const link = document.createElement('a');
+        link.download = `换发型_${Date.now()}.png`;
+        link.href = imageUrl;
+        document.body.appendChild(link);
+        link.click();
+        document.body.removeChild(link);
+        this.showToast('图片已保存');
+      }
+    } else {
+      // 是 URL，移动端和桌面端都使用长按保存的方式
+      this.openImageForSave(imageUrl);
+    }
+  }
+
+  // 打开图片在新窗口，提示用户长按保存（移动端保存到相册）
+  openImageForSave(imageUrl) {
+    const newWindow = window.open(imageUrl, '_blank');
+    if (newWindow) {
+      this.showToast('已在新窗口打开图片，请长按图片并选择"保存到相册"');
+    } else {
+      // 如果弹窗被拦截，回退到下载
+      this.downloadImageFromUrl(imageUrl);
+    }
+  }
+
+  // 从 URL 下载图片（保持原始格式，不转换）- 仅用于桌面端
+  async downloadImageFromUrl(url) {
+    try {
+      // 使用 fetch 获取图片二进制数据
+      const response = await fetch(url);
+      if (!response.ok) {
+        throw new Error('下载失败');
+      }
+
+      // 直接获取 blob（保持原始格式）
+      const blob = await response.blob();
+
+      // 从 URL 提取文件名和扩展名
+      const urlParts = url.split('/');
+      let filename = urlParts[urlParts.length - 1] || `image_${Date.now()}`;
+
+      // 如果文件名没有扩展名，从 Content-Type 推断
+      if (!filename.includes('.')) {
+        const contentType = blob.type; // 例如：'image/jpeg'
+        const ext = contentType.split('/')[1] || 'jpg';
+        filename = `image_${Date.now()}.${ext}`;
+      }
+
+      // 创建下载链接
+      const blobUrl = URL.createObjectURL(blob);
       const link = document.createElement('a');
-      link.download = `换发型_${Date.now()}.png`;
-      link.href = imageUrl;
+      link.download = filename;
+      link.href = blobUrl;
       document.body.appendChild(link);
       link.click();
       document.body.removeChild(link);
+
+      // 释放 URL
+      URL.revokeObjectURL(blobUrl);
+
       this.showToast('图片已保存');
-    } else {
-      // 是 URL，使用新窗口打开
-      window.open(imageUrl, '_blank');
-      this.showToast('已在新窗口打开图片，请长按保存');
+    } catch (error) {
+      // 如果下载失败，回退到打开新窗口
+      console.error('下载图片失败:', error);
+      this.openImageForSave(url);
     }
   }
 
@@ -1011,7 +1262,7 @@ class HairSwapApp {
     }
   }
 
-  // 设置详情页UI（先显示页面）
+  // 设置详情页 UI（先显示页面）
   setupDetailPageUI(id) {
     // 设置标记，让主事件处理器知道当前在详情页
     this.isInDetailPage = true;
@@ -1050,11 +1301,11 @@ class HairSwapApp {
       }
     };
 
-    // 显示对比按钮和保存按钮
+    // 详情页不显示保存按钮，但显示对比按钮
     const compareBtn = document.getElementById('compare-btn');
     const saveBtn = document.getElementById('save-btn');
     if (compareBtn) compareBtn.style.display = 'none'; // 先隐藏，有数据时再显示
-    if (saveBtn) saveBtn.style.display = 'block';
+    if (saveBtn) saveBtn.style.display = 'none'; // 详情页不显示保存按钮
 
     // 设置对比按钮事件
     this.setupCompareButton();
@@ -1074,11 +1325,13 @@ class HairSwapApp {
     }
 
     this.state.originalImageUrl = originalImageUrl;
+    this.state.hairstyleImagePath = this.state.hairstylePath; // 保存发型图路径
     // 清空 photoBase64，确保查看原图时使用历史记录的原图而不是之前上传的
     this.state.photoBase64 = null;
 
-    console.log('🖼️  生成图URL:', this.state.resultImage);
-    console.log('🖼️  原图URL:', this.state.originalImageUrl);
+    console.log('🖼️  生成图 URL:', this.state.resultImage);
+    console.log('🖼️  原图 URL:', this.state.originalImageUrl);
+    console.log('🖼️  发型图路径:', this.state.hairstyleImagePath);
 
     // 创建隐藏的图片元素来加载原图（确保完整加载）
     if (this.state.originalImageUrl) {
@@ -1132,6 +1385,130 @@ class HairSwapApp {
     if (headerTitle) {
       headerTitle.textContent = record.hairstyleName || '历史记录';
     }
+
+    // 添加缩略图区域（按住替换功能）
+    this.addDetailThumbnails(record);
+  }
+
+  // 添加详情页缩略图（原图和发型图）
+  addDetailThumbnails(record) {
+    // 移除旧的缩略图区域（如果有）
+    const oldThumbnails = document.getElementById('detail-thumbnails');
+    if (oldThumbnails) {
+      oldThumbnails.remove();
+    }
+
+    // 从 hairstyleName 提取发型编号（如"发型 1"或"发型 8" → "1"或"8"）
+    let hairstyleNum = '1'; // 默认
+    if (record.hairstyleName) {
+      // 匹配"发型 X"格式，X 为数字（有无空格都可以）
+      const match = record.hairstyleName.match(/发型\s*(\d+)/);
+      if (match) {
+        hairstyleNum = match[1];
+      }
+    }
+    const hairstyleFileName = `hairstyle${hairstyleNum}.png`;
+    const hairstyleThumbFileName = `hairstyle${hairstyleNum}_thumb.jpg`; // 缩略图
+
+    console.log('📋 发型名称:', record.hairstyleName, '→ 文件名:', hairstyleFileName);
+
+    // 创建缩略图区域
+    const thumbnailsDiv = document.createElement('div');
+    thumbnailsDiv.id = 'detail-thumbnails';
+    thumbnailsDiv.className = 'detail-thumbnails';
+    thumbnailsDiv.style.cssText = `
+      display: flex;
+      justify-content: center;
+      gap: 16px;
+      padding: 16px;
+      margin-top: 16px;
+    `;
+
+    // 原图缩略图
+    const originalThumb = document.createElement('div');
+    originalThumb.style.cssText = `
+      text-align: center;
+      cursor: pointer;
+    `;
+    originalThumb.innerHTML = `
+      <img src="${this.state.originalImageUrl || ''}" 
+           style="width: 80px; height: 80px; object-fit: cover; border-radius: 8px; border: 2px solid #e5e6ec;" 
+           alt="原图">
+      <div style="font-size: 12px; color: #7a7a8c; margin-top: 4px;">原图</div>
+    `;
+
+    // 发型图缩略图
+    const hairstyleThumb = document.createElement('div');
+    hairstyleThumb.style.cssText = `
+      text-align: center;
+      cursor: pointer;
+    `;
+    hairstyleThumb.innerHTML = `
+      <img src="images/${hairstyleThumbFileName}" 
+           style="width: 80px; height: 80px; object-fit: cover; border-radius: 8px; border: 2px solid #e5e6ec;" 
+           alt="发型图">
+      <div style="font-size: 12px; color: #7a7a8c; margin-top: 4px;">发型</div>
+    `;
+
+    thumbnailsDiv.appendChild(originalThumb);
+    thumbnailsDiv.appendChild(hairstyleThumb);
+
+    // 添加到页面（在 result-content 中）
+    const resultContent = document.querySelector('.result-content');
+    if (resultContent) {
+      resultContent.appendChild(thumbnailsDiv);
+    }
+
+    // 绑定按住替换事件
+    this.bindThumbnailEvents(originalThumb, hairstyleThumb, hairstyleFileName);
+  }
+
+  // 绑定缩略图按住替换事件
+  bindThumbnailEvents(originalThumb, hairstyleThumb, hairstyleFileName) {
+    const resultImage = document.getElementById('result-image');
+    if (!resultImage) return;
+
+    const hairstyleNum = hairstyleFileName.replace('hairstyle', '').replace('.png', '');
+    const hairstyleThumbFileName = `hairstyle${hairstyleNum}_thumb.jpg`; // 缩略图
+
+    const originalSrc = this.state.resultImage; // 生成图
+    const originalImgSrc = this.state.originalImageUrl; // 原图
+    const hairstyleSrc = `images/${hairstyleThumbFileName}`; // 发型缩略图（放大显示）
+
+    // 按住原图缩略图：显示原图
+    const showOriginal = () => {
+      resultImage.src = originalImgSrc;
+    };
+    const restoreResult = () => {
+      resultImage.src = originalSrc;
+    };
+
+    // 按住发型图缩略图：显示发型缩略图（放大）
+    const showHairstyle = () => {
+      resultImage.src = hairstyleSrc;
+    };
+
+    // 原图缩略图事件（移动端和桌面端）
+    originalThumb.addEventListener('touchstart', (e) => {
+      e.preventDefault();
+      showOriginal();
+    });
+    originalThumb.addEventListener('touchend', restoreResult);
+    originalThumb.addEventListener('touchcancel', restoreResult);
+    originalThumb.addEventListener('mousedown', showOriginal);
+    originalThumb.addEventListener('mouseup', restoreResult);
+    originalThumb.addEventListener('mouseleave', restoreResult);
+
+    // 发型图缩略图事件（移动端和桌面端）
+    hairstyleThumb.addEventListener('touchstart', (e) => {
+      e.preventDefault();
+      showHairstyle();
+    });
+    hairstyleThumb.addEventListener('touchend', restoreResult);
+    hairstyleThumb.addEventListener('touchcancel', restoreResult);
+    hairstyleThumb.addEventListener('mousedown', showHairstyle);
+    hairstyleThumb.addEventListener('mouseup', restoreResult);
+    hairstyleThumb.addEventListener('mouseleave', restoreResult);
   }
 
   showPage(pageId) {

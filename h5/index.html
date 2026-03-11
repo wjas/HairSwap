@@ -229,6 +229,30 @@
         </main>
       </div>
     </div>
+
+    <!-- 密码验证弹窗 -->
+    <div id="password-modal" class="modal" style="display: none;">
+      <div class="modal-overlay"></div>
+      <div class="modal-content">
+        <h2 class="modal-title">🔐 请输入访问密码</h2>
+        <p class="modal-desc">请输入 4 位数密码以继续访问</p>
+        <div class="password-input-container">
+          <input type="tel" id="password-input-1" class="password-digit" maxlength="1" inputmode="numeric"
+            pattern="[0-9]*" autocomplete="off">
+          <input type="tel" id="password-input-2" class="password-digit" maxlength="1" inputmode="numeric"
+            pattern="[0-9]*" autocomplete="off">
+          <input type="tel" id="password-input-3" class="password-digit" maxlength="1" inputmode="numeric"
+            pattern="[0-9]*" autocomplete="off">
+          <input type="tel" id="password-input-4" class="password-digit" maxlength="1" inputmode="numeric"
+            pattern="[0-9]*" autocomplete="off">
+          <input type="password" id="password-input-hidden" class="password-input-hidden" maxlength="4">
+        </div>
+        <div id="password-error" class="error-message" style="display: none;"></div>
+        <div class="modal-buttons">
+          <button id="password-submit-btn" class="primary-btn" style="width: 100%;">确认</button>
+        </div>
+      </div>
+    </div>
   </div>
 
   <script src="js/app.js?v=20260310q"></script>

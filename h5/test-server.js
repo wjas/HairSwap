@@ -45,6 +45,60 @@ const CONFIG = {
   VOLCENGINE_BASE_URL: 'https://ark.cn-beijing.volces.com/api/v3'
 };
 
+// 密码管理
+const PASSWORD_FILE = path.join(__dirname, 'password.json');
+let passwordConfig = null;
+
+// 加载密码配置
+function loadPasswordConfig() {
+  try {
+    if (fs.existsSync(PASSWORD_FILE)) {
+      passwordConfig = JSON.parse(fs.readFileSync(PASSWORD_FILE, 'utf-8'));
+      console.log('🔐 密码验证已启用');
+    } else {
+      passwordConfig = null;
+      console.log('🔓 密码验证未启用');
+    }
+  } catch (error) {
+    console.error('❌ 加载密码配置失败:', error.message);
+    passwordConfig = null;
+  }
+}
+
+// 保存密码配置
+function savePasswordConfig() {
+  try {
+    fs.writeFileSync(PASSWORD_FILE, JSON.stringify(passwordConfig, null, 2), 'utf-8');
+    return true;
+  } catch (error) {
+    console.error('❌ 保存密码配置失败:', error.message);
+    return false;
+  }
+}
+
+// 检查密码是否有效
+function isPasswordValid(password) {
+  if (!passwordConfig || passwordConfig.disabled) {
+    return true; // 未启用密码或已禁用
+  }
+
+  // 检查是否过期
+  if (passwordConfig.expires) {
+    const now = new Date();
+    const expires = new Date(passwordConfig.expires);
+    if (now > expires) {
+      console.log('⚠️ 密码已过期');
+      return false;
+    }
+  }
+
+  // 验证密码
+  return passwordConfig.password === password;
+}
+
+// 加载密码配置
+loadPasswordConfig();
+
 console.log('🚀 HairSwap 本地测试服务器');
 console.log('📍 端口:', PORT);
 console.log('🔧 API Key:', CONFIG.VOLCENGINE_API_KEY ? '已配置' : '⚠️ 未配置');
@@ -53,7 +107,7 @@ console.log('');
 const server = http.createServer(async (req, res) => {
   // 设置 CORS - 允许所有来源和方法
   res.setHeader('Access-Control-Allow-Origin', '*');
-  res.setHeader('Access-Control-Allow-Methods', 'GET, POST, OPTIONS');
+  res.setHeader('Access-Control-Allow-Methods', 'GET, POST, PUT, DELETE, OPTIONS');
   res.setHeader('Access-Control-Allow-Headers', 'Content-Type');
   res.setHeader('Access-Control-Max-Age', '86400');
 
@@ -518,6 +572,128 @@ const server = http.createServer(async (req, res) => {
       res.end(JSON.stringify(responseData));
     } catch (error) {
       console.error('❌ 获取历史记录详情失败:', error);
+      res.writeHead(500, { 'Content-Type': 'application/json' });
+      res.end(JSON.stringify({ success: false, message: error.message }));
+    }
+  } else if (req.method === 'POST' && req.url === '/api/password/verify') {
+    // 验证密码
+    let body = '';
+    req.on('data', chunk => {
+      body += chunk.toString();
+    });
+    req.on('end', async () => {
+      try {
+        const { password } = JSON.parse(body);
+
+        if (!password) {
+          res.writeHead(400, { 'Content-Type': 'application/json' });
+          res.end(JSON.stringify({ success: false, message: '缺少密码' }));
+          return;
+        }
+
+        const valid = isPasswordValid(password);
+
+        if (valid) {
+          console.log('✅ 密码验证通过');
+          res.writeHead(200, { 'Content-Type': 'application/json' });
+          res.end(JSON.stringify({ success: true }));
+        } else {
+          console.log('❌ 密码验证失败');
+          res.writeHead(401, { 'Content-Type': 'application/json' });
+          res.end(JSON.stringify({ success: false, message: '密码错误' }));
+        }
+      } catch (error) {
+        console.error('❌ 验证密码失败:', error);
+        res.writeHead(500, { 'Content-Type': 'application/json' });
+        res.end(JSON.stringify({ success: false, message: error.message }));
+      }
+    });
+  } else if (req.method === 'POST' && req.url === '/api/password/set') {
+    // 设置新密码
+    let body = '';
+    req.on('data', chunk => {
+      body += chunk.toString();
+    });
+    req.on('end', async () => {
+      try {
+        const { password, expires } = JSON.parse(body);
+
+        if (!password || password.length !== 4 || !/^\d{4}$/.test(password)) {
+          res.writeHead(400, { 'Content-Type': 'application/json' });
+          res.end(JSON.stringify({ success: false, message: '密码必须是 4 位数字' }));
+          return;
+        }
+
+        passwordConfig = {
+          password: password,
+          expires: expires || null,
+          disabled: false
+        };
+
+        if (savePasswordConfig()) {
+          console.log('✅ 密码已设置:', password);
+          res.writeHead(200, { 'Content-Type': 'application/json' });
+          res.end(JSON.stringify({ success: true }));
+        } else {
+          res.writeHead(500, { 'Content-Type': 'application/json' });
+          res.end(JSON.stringify({ success: false, message: '保存失败' }));
+        }
+      } catch (error) {
+        console.error('❌ 设置密码失败:', error);
+        res.writeHead(500, { 'Content-Type': 'application/json' });
+        res.end(JSON.stringify({ success: false, message: error.message }));
+      }
+    });
+  } else if (req.method === 'DELETE' && req.url === '/api/password') {
+    // 删除密码
+    try {
+      passwordConfig = null;
+      if (fs.existsSync(PASSWORD_FILE)) {
+        fs.unlinkSync(PASSWORD_FILE);
+      }
+      console.log('🔓 密码已删除');
+      res.writeHead(200, { 'Content-Type': 'application/json' });
+      res.end(JSON.stringify({ success: true }));
+    } catch (error) {
+      console.error('❌ 删除密码失败:', error);
+      res.writeHead(500, { 'Content-Type': 'application/json' });
+      res.end(JSON.stringify({ success: false, message: error.message }));
+    }
+  } else if (req.method === 'GET' && req.url === '/api/password/status') {
+    // 获取密码状态
+    try {
+      const status = {
+        enabled: passwordConfig !== null && !passwordConfig.disabled,
+        expires: passwordConfig ? passwordConfig.expires : null,
+        password: passwordConfig && !passwordConfig.disabled ? passwordConfig.password : null,
+        hasPassword: passwordConfig !== null && passwordConfig.password !== null
+      };
+      res.writeHead(200, { 'Content-Type': 'application/json' });
+      res.end(JSON.stringify(status));
+    } catch (error) {
+      console.error('❌ 获取密码状态失败:', error);
+      res.writeHead(500, { 'Content-Type': 'application/json' });
+      res.end(JSON.stringify({ success: false, message: error.message }));
+    }
+  } else if (req.method === 'PUT' && req.url === '/api/password/disable') {
+    // 禁用密码
+    try {
+      if (passwordConfig) {
+        passwordConfig.disabled = true;
+        if (savePasswordConfig()) {
+          console.log('🔒 密码已禁用');
+          res.writeHead(200, { 'Content-Type': 'application/json' });
+          res.end(JSON.stringify({ success: true }));
+        } else {
+          res.writeHead(500, { 'Content-Type': 'application/json' });
+          res.end(JSON.stringify({ success: false, message: '保存失败' }));
+        }
+      } else {
+        res.writeHead(404, { 'Content-Type': 'application/json' });
+        res.end(JSON.stringify({ success: false, message: '密码未设置' }));
+      }
+    } catch (error) {
+      console.error('❌ 禁用密码失败:', error);
       res.writeHead(500, { 'Content-Type': 'application/json' });
       res.end(JSON.stringify({ success: false, message: error.message }));
     }
